@@ -8,4 +8,4 @@ pyspm
 lightning
 invoke
 wandb
-scikit-image 
+scikit-image>=0.25.0
