@@ -1,0 +1,3 @@
+imgs_path: "data/clean/imgs"
+labels_path: "data/clean/labels"
+models_dir: "src/models/config/cl_models"

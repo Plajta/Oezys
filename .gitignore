@@ -1,5 +1,6 @@
 env
 data
+*.pkl
 */__pycache__/
 
 */*/__pycache__/

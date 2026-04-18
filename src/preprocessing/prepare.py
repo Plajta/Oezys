@@ -15,6 +15,7 @@ TARGET_RESOL_UM = 0.1  # Set target to 0.1 um per pixel
 CROP_SIZE = 500        # Center crop to 500x500 pixels (50x50 um area)
 
 def prepare_image(path: str):
+    print(f"Preparing image from {path}")
     Z = convertAFMtoArray(path)
     
     # Center crop to exactly CROP_SIZE

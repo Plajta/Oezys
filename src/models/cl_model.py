@@ -11,6 +11,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+import pickle
+import yaml
 
 SUPPORTED_EXTENSIONS = {".bmp"}
 
@@ -99,12 +101,14 @@ def image_to_feature_vector(image_path):
     return features
 
 
-def load_dataset(root_dir):
+def load_dataset(imgs_dir, labels_dir):
     rows = []
-    root_dir = Path(root_dir)
+    imgs_dir = Path(imgs_dir)
+    labels_dir = Path(labels_dir)
 
-    for file_path in root_dir.rglob("*.bmp"):
-        rows.append({**image_to_feature_vector(file_path), "class": file_path.parent.name})
+    for img_path in imgs_dir.iterdir():
+        label_path = labels_dir / (img_path.stem + ".txt") 
+        rows.append({**image_to_feature_vector(img_path), "class": label_path.read_text().strip()})
 
     return pd.DataFrame(rows)
 
@@ -181,6 +185,7 @@ def plot_feature_distributions(df):
             x="class",
             y=feature,
             ax=ax,
+            hue="class",
             palette=palette,
             jitter=0.2,
             size=4,
@@ -198,18 +203,33 @@ def plot_feature_distributions(df):
     plt.suptitle("Feature Distributions by Class", fontsize=18, y=1.02)
     plt.show()
 
+def load_data(config_path):
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    imgs_dir = config["imgs_path"]
+    labels_dir = config["labels_path"]
+    models_dir = config["models_dir"]
+    return load_dataset(imgs_dir, labels_dir), models_dir
 
-def main():
-    root_dir = Path("/home/jan/Dokumenty/RadBrecim/models/TRAIN_SET")
-    df = load_dataset(root_dir)
-
-    print(df.head())
+def train_model(model_path, df):
     model, scaler, X_test, y_test = train_tear_classifier(df)
+    pickle.dump(model, open(model_path, "wb"))
+
+def test_model(model_path, df):
+    model = pickle.load(open(model_path, "rb"))
+    print(model)
     plot_feature_importance(model, df.drop("class", axis=1).columns)
     plot_umap_projection(df)
     plot_feature_distributions(df)
 
 
 if __name__ == "__main__":
-    main()
-    
+    config_path = Path("src/models/config/cl_models/config.yaml")
+    df, models_dir = load_data(config_path)
+    model_path = Path(models_dir) / "tear_classifier.pkl"
+    if model_path.exists():
+        print(f"Model already exists at {model_path}. Loading and testing...")
+        test_model(model_path, df)
+    else:
+        train_model(model_path, df)
+        test_model(model_path, df)
