@@ -2,6 +2,7 @@ import configparser
 import json
 import os
 
+
 class Config:
     def __init__(self):
         conf = configparser.ConfigParser()

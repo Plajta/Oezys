@@ -4,7 +4,7 @@ torchvision
 timm
 numpy
 matplotlib
-pySPM
+pyspm
 lightning
 invoke
 wandb

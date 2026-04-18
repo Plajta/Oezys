@@ -3,8 +3,7 @@ import os
 import numpy as np
 import pySPM
 import matplotlib.pyplot as plt
-from logger.logger import LOGI, LOGE, LOGW
-from sklearn.preprocessing import normalize
+from src.logger.logger import LOGI, LOGE, LOGW
 
 TAG = "PREPARER"
 
