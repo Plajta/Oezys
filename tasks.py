@@ -1,7 +1,7 @@
 from invoke import task
 from src.preprocessing.config import CONFIG
 from src.preprocessing.download import download_data
-from src.preprocessing.prepare import prepare_datas, prepare_experimental
+from src.preprocessing.prepare import prepare_datas, prepare_experimental, prepare_imaginary_datas
 from src.preprocessing.cleaner import remove_raw_data, remove_clean_data, remove_all, remove_zip
 
 from pathlib import Path
@@ -37,3 +37,12 @@ def experimental(ctx, clean=False):
     if clean and os.path.exists(CONFIG.exp_dir):
         shutil.rmtree(CONFIG.exp_dir)
     prepare_experimental(CONFIG.clean_dir, CONFIG.exp_dir)
+
+
+@task
+def imaginary(ctx, clean=False):
+    """Generate multi-layered (Amplitude/Phase/Height) augmented crops into data/imaginary/"""
+    import shutil, os
+    if clean and os.path.exists(CONFIG.imaginary_dir):
+        shutil.rmtree(CONFIG.imaginary_dir)
+    prepare_imaginary_datas(CONFIG.raw_dir, CONFIG.imaginary_dir, CONFIG.classes_raw_dirs)
