@@ -19,3 +19,9 @@ First working application to show that we can do it and in which phase we are.
 - Authentication
 
 ### Overkill
+
+## Config
+
+.env```
+type="dev" // can be dev / prod / test
+```
