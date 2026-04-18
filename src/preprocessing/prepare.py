@@ -3,11 +3,17 @@ import os
 import numpy as np
 import pySPM
 import matplotlib.pyplot as plt
-from logger.logger import LOGI, LOGE, LOGW
+from src.logger.logger import LOGI, LOGE, LOGW
 
 TAG = "PREPARER"
 
-def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
+def prepare_image(path: str):
+    Z = convertAFMtoArray(path)
+    norm = Z / np.linalg.norm(Z)
+    return norm
+
+
+def prepare_datas(input_dir: str, output_dir: str, classes_raw_dirs: dict):
     LOGI(TAG, f"Preparing data from {input_dir} to {output_dir}")
     sentinel_file = os.path.join(output_dir, ".prepare_done")
     if os.path.exists(sentinel_file):
@@ -22,7 +28,9 @@ def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
                 if entry.is_file() and is_spm_file(entry.path):
                     coverted_path = os.path.join(output_dir, "imgs", str(index) + ".bmp")
                     label_path = os.path.join(output_dir, "labels", str(index) + ".txt")
-                    convertAFMtoImage(entry.path, coverted_path)
+                    img = prepare_image(entry.path)
+                    plt.imsave(coverted_path, img, cmap='afmhot')
+                    print(f"Saved successfully as {coverted_path}")
                     with open(label_path, 'w') as f:
                         f.write(str(classes_raw_dirs[raw_dir]))
                     index += 1
@@ -30,12 +38,11 @@ def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
         f.write("done")
     LOGI(TAG, f"Dataset prepared at {output_dir}")
 
-def convertAFMtoImage(afmraw_path: str, output_path: str):
+def convertAFMtoArray(afmraw_path: str):
     scan = pySPM.Bruker(afmraw_path)
     height = scan.get_channel('Height Sensor').correct_lines()
-    Z = height.pixels
-    plt.imsave(output_path, Z, cmap='afmhot')
-    print(f"Saved successfully as {output_path}")
+    print(height)
+    return height.pixels 
 
 def _create_clean_folder(output_dir: str):
     clean_imgs_dir_path = os.path.join(output_dir, "imgs")
@@ -47,7 +54,7 @@ def is_spm_file(filepath):
     try:
         with open(filepath, 'rb') as f:
             first_line = f.read(15).decode('ascii', errors='ignore')
-            if first_line.startswith('\*File list'):
+            if first_line.startswith('\\*File list'):
                 return True
     except Exception:
         pass

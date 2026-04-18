@@ -1,6 +1,6 @@
 import os
 import shutil
-from logger.logger import LOGI, LOGE
+from src.logger.logger import LOGI, LOGE
 
 TAG = "CLEANER"
 

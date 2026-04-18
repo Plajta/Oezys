@@ -1,9 +1,9 @@
 import os
-from logger.logger import LOGI, LOGE, LOGW
+from src.logger.logger import LOGI, LOGE, LOGW
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 import urllib.request
-
+import sys
 
 TAG = "DOWNLOADER"
 
@@ -12,16 +12,14 @@ def download_data(source_url: str, output_dir: str):
     LOGI(TAG, f"Downloading data from {source_url} to {output_dir}")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     zip_path = _download_dataset(source_url, output_dir)
 
     _extract_dataset(zip_path, output_dir)
-    
-import sys
+
 
 def _download_dataset(url: str, output_path: str):
     zip_path = os.path.join(output_path, "data.zip")
-    
     try:
         # Ping the server to learn the exact total file size
         req_head = urllib.request.Request(url, method='HEAD')
@@ -54,7 +52,7 @@ def _download_dataset(url: str, output_path: str):
             # Only append ('ab') if we are actively resuming, else write new ('wb')
             mode = 'ab' if initial_size > 0 else 'wb'
             downloaded = initial_size
-            
+
             with open(zip_path, mode) as f:
                 while True:
                     # Download chunks stream
