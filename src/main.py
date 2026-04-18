@@ -1,7 +1,7 @@
 import argparse
 from config import CONFIG
 from preprocessing.download import download_data
-from preprocessing.prepare import prepare_data
+from preprocessing.prepare import prepare_datas
 from preprocessing.cleaner import remove_raw_data, remove_clean_data, remove_all, remove_zip
 
 
@@ -24,9 +24,8 @@ def main():
         if args.clean_prepared:
             remove_clean_data(CONFIG.clean_dir)
 
-    # Continue with normal pipeline (will bypass automatically if already done)
     download_data(CONFIG.source_url, CONFIG.raw_dir)
-    prepare_data(CONFIG.raw_dir, CONFIG.clean_dir, CONFIG.classes_raw_dirs)
+    prepare_datas(CONFIG.raw_dir, CONFIG.clean_dir, CONFIG.classes_raw_dirs)
 
 if __name__ == "__main__":
     main()
