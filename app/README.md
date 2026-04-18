@@ -19,6 +19,25 @@ First working application to show that we can do it and in which phase we are.
 - Authentication
 
 ### Overkill
+- Add 3d graph of crystal to application
+
+## How to run
+
+**Requirements:** Python 3.11+
+
+```bash
+# 1. Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Create .env file (see Config section below)
+
+# 4. Run
+python main.py
+```
 
 ## Config
 
