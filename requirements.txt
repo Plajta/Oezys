@@ -9,3 +9,7 @@ lightning
 invoke
 wandb
 scikit-image>=0.25.0
+seaborn
+pandas
+pathlib
+umap-learn
