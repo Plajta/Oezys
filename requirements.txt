@@ -1,3 +1,7 @@
 albumentations
+torch
+torchvision
+timm
+numpy
 matplotlib
 pySPM
