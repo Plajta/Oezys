@@ -1,5 +1,6 @@
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QLinearGradient, QColor, QPainter, QPaintEvent
+from pathlib import Path
+from PyQt6.QtGui import QLinearGradient, QColor, QPainter, QPaintEvent, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -15,6 +16,7 @@ from PIL import Image
 from ..pipeline import Pipeline, PipelineOut
 from .widgets.image_upload import ImageUploadWidget
 from .widgets.description_panel import DescriptionPanel
+from .widgets.loading_overlay import LoadingOverlay
 from .widgets.metrics_panel import MetricsPanel
 
 
@@ -114,8 +116,14 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(header)
         layout.setContentsMargins(16, 0, 16, 0)
 
+        logo_path = Path(__file__).parent.parent / "assets" / "images" / "logo.png"
+        logo = QLabel()
+        pixmap = QPixmap(str(logo_path)).scaled(26, 26, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        logo.setPixmap(pixmap)
+        layout.addWidget(logo)
+
         title = QLabel("RadBrecim")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #00B3DB; font-family: 'Open Sans', sans-serif;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #538AC1; font-family: 'Open Sans', sans-serif;")
         layout.addWidget(title)
         layout.addStretch()
 
@@ -160,6 +168,8 @@ class MainWindow(QMainWindow):
         self._metrics = MetricsPanel()
         layout.addWidget(self._metrics, stretch=1)
 
+        self._overlay = LoadingOverlay(panel)
+
         return panel
 
     def _on_image_loaded(self, image: Image.Image, path: str):
@@ -175,7 +185,7 @@ class MainWindow(QMainWindow):
             return
 
         self._run_btn.setEnabled(False)
-        self._description.update_info(self._current_path)
+        self._overlay.start()
         self._status.showMessage("Running analysis…")
 
         self._worker = _RunWorker(self._pipeline, image)
@@ -184,12 +194,13 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def _on_pipeline_done(self, output: PipelineOut):
+        self._overlay.stop()
+        self._description.update_from_metrics(output.metrics)
         self._metrics.update_metrics(output.metrics)
         self._run_btn.setEnabled(True)
-        self._status.showMessage(
-            f"Done — {output.prediction.label} ({output.prediction.confidence * 100:.1f}%)"
-        )
+        self._status.showMessage("Analysis complete")
 
     def _on_pipeline_error(self, msg: str):
+        self._overlay.stop()
         self._run_btn.setEnabled(True)
         self._status.showMessage(f"Error: {msg}")

@@ -1,16 +1,29 @@
+import tempfile
+from pathlib import Path
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog
 from PIL import Image
 
+from ...utils.converter import parse_afm_to_bmp
+
+_BMP_SUFFIXES = {".bmp"}
+
+
+def _is_afm(path: str) -> bool:
+    suffix = Path(path).suffix.lower()
+    return suffix not in _BMP_SUFFIXES
+
 
 class ImageUploadWidget(QWidget):
-    image_loaded = pyqtSignal(object, str)  # emits (PIL.Image.Image, path)
+    image_loaded = pyqtSignal(object, str)  # emits (PIL.Image.Image, original_path)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._image: Image.Image | None = None
         self._path: str = ""
+        self._tmp: tempfile.NamedTemporaryFile | None = None
         self._build_ui()
         self.setAcceptDrops(True)
 
@@ -20,7 +33,7 @@ class ImageUploadWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self._preview = QLabel("Drop image here\nor click Browse")
+        self._preview = QLabel("Drop AFM file here\nor click Browse")
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview.setContentsMargins(0, 0, 0, 0)
         self._preview.setMinimumSize(320, 280)
@@ -37,15 +50,26 @@ class ImageUploadWidget(QWidget):
 
     def _open_file_dialog(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "", "BMP Images (*.bmp)"
+            self, "Open AFM File", "", "All Files (*)"
         )
         if path:
             self._load_path(path)
 
     def _load_path(self, path: str):
+        bmp_path = path
+
+        if _is_afm(path):
+            # close previous temp file if any
+            if self._tmp:
+                self._tmp.close()
+            self._tmp = tempfile.NamedTemporaryFile(suffix=".bmp", delete=False)
+            self._tmp.close()
+            parse_afm_to_bmp(path, self._tmp.name)
+            bmp_path = self._tmp.name
+
         self._path = path
-        self._image = Image.open(path)
-        pixmap = QPixmap(path).scaled(
+        self._image = Image.open(bmp_path)
+        pixmap = QPixmap(bmp_path).scaled(
             self._preview.width(),
             self._preview.height(),
             Qt.AspectRatioMode.KeepAspectRatio,

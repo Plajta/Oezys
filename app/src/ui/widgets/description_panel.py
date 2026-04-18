@@ -1,4 +1,3 @@
-from datetime import datetime
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
@@ -52,10 +51,9 @@ class DescriptionPanel(QWidget):
 
         layout.addLayout(grid)
 
-    def update_info(self, image_path: str):
-        from pathlib import Path
-        self._name_val.setText(Path(image_path).name)
-        self._dt_val.setText(datetime.now().strftime("%Y-%m-%d  %H:%M:%S"))
+    def update_from_metrics(self, metrics):
+        self._name_val.setText(metrics.FileName or "—")
+        self._dt_val.setText(metrics.Datetime or "—")
 
     def clear(self):
         self._name_val.setText("—")

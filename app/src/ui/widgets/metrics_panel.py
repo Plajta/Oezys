@@ -1,8 +1,7 @@
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
-
-
+from matplotlib.ticker import FuncFormatter
 
 class MetricsPanel(QWidget):
     def __init__(self, parent=None):
@@ -25,27 +24,53 @@ class MetricsPanel(QWidget):
         self._summary_label.setStyleSheet("font-size: 12px; color: #538AC1; font-family: 'Open Sans', sans-serif;")
         layout.addWidget(self._summary_label)
 
-    def update_metrics(self, metrics: MetricsResult):
-        chart_data = metrics.charts.get("probabilities", [])
-        labels = [d["label"] for d in chart_data]
-        values = [d["value"] for d in chart_data]
+    def update_metrics(self, metrics):
+        probs = getattr(metrics, "Probabilities", None) or getattr(metrics, "probabilities", []) or []
+        labels = list(getattr(metrics, "labels", []))
+
+        if not probs or not labels:
+            self._figure.clear()
+            self._canvas.draw()
+            self._summary_label.setText("No data")
+            return
+
+        # Ensure consistent length
+        n = min(len(probs), len(labels))
+        probs = probs[:n]
+        labels = labels[:n]
+
+        # Normalize safely (handle both 0–100 and 0–1)
+        values = [p / 100 if p > 1 else p for p in probs]
 
         self._figure.clear()
         ax = self._figure.add_subplot(111)
         ax.set_facecolor("#0d1820")
-        bars = ax.barh(labels, values, color="#538AC1")
+
+        y_pos = range(n)
+        ax.barh(y_pos, values, color="#538AC1")
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(labels, color="#ddd", fontsize=9)
+
         ax.set_xlim(0, 1)
-        ax.tick_params(colors="#538AC1")
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x * 100)}%"))
+
+        ax.tick_params(axis="x", colors="#538AC1", labelsize=9)
+        ax.tick_params(axis="y", colors="#ddd", labelsize=9)
+
         for spine in ax.spines.values():
             spine.set_edgecolor("#152331")
-        ax.bar_label(bars, fmt="%.2f", padding=4, color="#00B3DB", fontsize=9)
+
+        # Clamp text position so it doesn't overflow
+        for i, (val, prob) in enumerate(zip(values, probs)):
+            x_pos = min(val + 0.01, 0.98)
+            ax.text(x_pos, i, f"{prob}%", va="center", color="#00B3DB", fontsize=9)
+
         self._canvas.draw()
 
-        summary_text = "  |  ".join(
-            f"{k}: {v:.4f}" for k, v in metrics.summary.items()
-        )
-        self._summary_label.setText(summary_text)
-
+        # Use same sliced labels
+        best_idx = max(range(n), key=lambda i: probs[i])
+        self._summary_label.setText(f"Prediction: {labels[best_idx]}")
     def clear(self):
         self._figure.clear()
         self._canvas.draw()
