@@ -8,3 +8,4 @@ pySPM
 lightning
 invoke
 wandb
+scikit-image 

@@ -4,6 +4,7 @@ import numpy as np
 import pySPM
 import matplotlib.pyplot as plt
 from logger.logger import LOGI, LOGE, LOGW
+from sklearn.preprocessing import normalize
 
 TAG = "PREPARER"
 
@@ -22,7 +23,10 @@ def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
                 if entry.is_file() and is_spm_file(entry.path):
                     coverted_path = os.path.join(output_dir, "imgs", str(index) + ".bmp")
                     label_path = os.path.join(output_dir, "labels", str(index) + ".txt")
-                    convertAFMtoImage(entry.path, coverted_path)
+                    Z = convertAFMtoArray(entry.path)
+                    norm = Z / np.linalg.norm(Z)
+                    plt.imsave(coverted_path, norm, cmap='afmhot')
+                    print(f"Saved successfully as {coverted_path}")
                     with open(label_path, 'w') as f:
                         f.write(str(classes_raw_dirs[raw_dir]))
                     index += 1
@@ -30,12 +34,11 @@ def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
         f.write("done")
     LOGI(TAG, f"Dataset prepared at {output_dir}")
 
-def convertAFMtoImage(afmraw_path: str, output_path: str):
+def convertAFMtoArray(afmraw_path: str):
     scan = pySPM.Bruker(afmraw_path)
     height = scan.get_channel('Height Sensor').correct_lines()
-    Z = height.pixels
-    plt.imsave(output_path, Z, cmap='afmhot')
-    print(f"Saved successfully as {output_path}")
+    print(height)
+    return height.pixels 
 
 def _create_clean_folder(output_dir: str):
     clean_imgs_dir_path = os.path.join(output_dir, "imgs")
