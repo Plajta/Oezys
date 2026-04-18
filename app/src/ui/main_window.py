@@ -33,14 +33,14 @@ class _RunWorker(QThread):
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
-    def __init__(self, pipeline: Pipeline, image: Image.Image):
+    def __init__(self, pipeline: Pipeline, path: str):
         super().__init__()
         self._pipeline = pipeline
-        self._image = image
+        self._path = path
 
     def run(self):
         try:
-            output = self._pipeline.run(self._image)
+            output = self._pipeline.run(self._path)
             if output is None:
                 self.error.emit("Pipeline returned no output (not implemented yet)")
             else:
@@ -180,15 +180,14 @@ class MainWindow(QMainWindow):
         self._status.showMessage("Image loaded — ready to analyse")
 
     def _run_pipeline(self):
-        image = self._upload.current_image
-        if image is None:
+        if not getattr(self, '_current_path', None):
             return
 
         self._run_btn.setEnabled(False)
         self._overlay.start()
         self._status.showMessage("Running analysis…")
 
-        self._worker = _RunWorker(self._pipeline, image)
+        self._worker = _RunWorker(self._pipeline, self._current_path)
         self._worker.finished.connect(self._on_pipeline_done)
         self._worker.error.connect(self._on_pipeline_error)
         self._worker.start()

@@ -11,7 +11,7 @@ First working application to show that we can do it and in which phase we are.
 - Preprocess data
 - Run data through model
 - Get Result
-- Show feedback/graphs/data/probability
+- Show feedback/graphs/data/probability +
 
 ### Good to have
 - Dedicated Backend server

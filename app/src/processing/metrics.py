@@ -1,6 +1,7 @@
 from datetime import datetime
 from .model import ModelData
 from .preprocessing import PreprocessorData
+import random
 
 class MetricData:
     def __init__(self, datetime=None, filename=None, probabilities=None):
@@ -24,7 +25,7 @@ class Metrics:
     def __init__(self):
         pass
     
-    def run(self, name: str, preprocessed: PreprocessorData, prediction: ModelData ) -> MetricData:
+    def run(self, preprocessed: PreprocessorData, prediction: ModelData, name: str = random.choice(["a","b","c","d"])) -> MetricData:
         from pathlib import Path
         metrics = MetricData()
         now = datetime.now()
@@ -32,6 +33,6 @@ class Metrics:
         stem = Path(name).stem
         suffix = Path(name).suffix
         ms = int(now.timestamp() * 1000)
-        metrics.FileName = f"{stem}_{ms}{suffix}"
+        metrics.FileName = f"{stem}_{ms}{suffix}.bmp"
         metrics.Probabilities = prediction.Probabilities if prediction.Probabilities else [30, 20, 20, 20, 10]
         return metrics

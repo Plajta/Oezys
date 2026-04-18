@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from PIL import Image
 
 from .processing import Preprocessor, Model, Metrics, MetricData, PreprocessorData, ModelData
 
@@ -20,14 +19,14 @@ class Pipeline:
         self._preprocessor = preprocessor
         pass
 
-    def run(self, image: Image.Image):
+    def run(self, path: str):
         # preprocess
         # predict
         # data/metrics
 
-        preprocessorData = self._preprocessor.run(image)
+        preprocessorData = self._preprocessor.run(path)
         modelData = self._model.run(preprocessorData)
-        metricsData = self._metrics.run(image.filename, preprocessorData, modelData)
+        metricsData = self._metrics.run(preprocessorData, modelData)
 
         return PipelineOut(
             preprocessed=preprocessorData,

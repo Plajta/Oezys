@@ -1,19 +1,10 @@
-import tempfile
-from pathlib import Path
-
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog
 from PIL import Image
+from PIL.ImageQt import ImageQt
 
-from ...utils.converter import parse_afm_to_bmp
-
-_BMP_SUFFIXES = {".bmp"}
-
-
-def _is_afm(path: str) -> bool:
-    suffix = Path(path).suffix.lower()
-    return suffix not in _BMP_SUFFIXES
+from ...utils.afm import convertAFMtoImage, is_spm_file
 
 
 class ImageUploadWidget(QWidget):
@@ -23,7 +14,6 @@ class ImageUploadWidget(QWidget):
         super().__init__(parent)
         self._image: Image.Image | None = None
         self._path: str = ""
-        self._tmp: tempfile.NamedTemporaryFile | None = None
         self._build_ui()
         self.setAcceptDrops(True)
 
@@ -56,20 +46,15 @@ class ImageUploadWidget(QWidget):
             self._load_path(path)
 
     def _load_path(self, path: str):
-        bmp_path = path
-
-        if _is_afm(path):
-            # close previous temp file if any
-            if self._tmp:
-                self._tmp.close()
-            self._tmp = tempfile.NamedTemporaryFile(suffix=".bmp", delete=False)
-            self._tmp.close()
-            parse_afm_to_bmp(path, self._tmp.name)
-            bmp_path = self._tmp.name
+        if is_spm_file(path):
+            image = convertAFMtoImage(path)
+        else:
+            image = Image.open(path)
 
         self._path = path
-        self._image = Image.open(bmp_path)
-        pixmap = QPixmap(bmp_path).scaled(
+        self._image = image
+
+        pixmap = QPixmap.fromImage(ImageQt(image)).scaled(
             self._preview.width(),
             self._preview.height(),
             Qt.AspectRatioMode.KeepAspectRatio,
