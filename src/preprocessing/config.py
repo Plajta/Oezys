@@ -8,7 +8,8 @@ class Config:
         conf = configparser.ConfigParser()
         
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        repo_root = os.path.dirname(current_dir)
+        src_dir = os.path.dirname(current_dir)
+        repo_root = os.path.dirname(src_dir)
         conf_path = os.path.join(current_dir, "config.conf")
         
         conf.read(conf_path)
