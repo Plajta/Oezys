@@ -91,4 +91,3 @@ def stash_checkpoints(ctx):
         orig_file_path = join(checkpoints_dir, filename)
         new_file_path = join(stashed_checkpoints_dir, f"{naming}{i}{filename}")
         shutil.move(orig_file_path, new_file_path)
-
