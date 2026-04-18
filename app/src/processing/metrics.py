@@ -34,5 +34,12 @@ class Metrics:
         suffix = Path(name).suffix
         ms = int(now.timestamp() * 1000)
         metrics.FileName = f"{stem}_{ms}{suffix}.bmp"
-        metrics.Probabilities = prediction.Probabilities if prediction.Probabilities else [30, 20, 20, 20, 10]
+        if prediction.Probabilities:
+            raw = prediction.Probabilities
+        else:
+            vals = [random.random() for _ in range(5)]
+            total = sum(vals)
+            raw = [v / total for v in vals]
+            print(f"[Metrics] No model output — using fallback probabilities: {raw}")
+        metrics.Probabilities = [round(p * 100, 2) for p in raw]
         return metrics
