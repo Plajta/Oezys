@@ -10,3 +10,5 @@ dist/
 build/
 .env
 .qodo
+
+TRAIN_SET
