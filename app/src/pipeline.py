@@ -1,19 +1,19 @@
 from dataclasses import dataclass
 from PIL import Image
 
-from .processing import Preprocessor, Model, Metrics
+from .processing import Preprocessor, Model, Metrics, MetricData, PreprocessorData, ModelData
 
 @dataclass
 class PipelineOut:
-    preprocessed: object
-    prediction: object
-    metrics: object
-    
+    preprocessed: PreprocessorData
+    prediction: ModelData
+    metrics: MetricData
+
 
 
 class Pipeline:
     def __init__(
-        self, metrics, model, preprocessor
+        self, metrics: Metrics, model: Model, preprocessor: Preprocessor
     ):
         self._metrics = metrics
         self._model = model
@@ -25,5 +25,12 @@ class Pipeline:
         # predict
         # data/metrics
 
-        pass
-       
+        preprocessorData = self._preprocessor.run(image)
+        modelData = self._model.run(preprocessorData)
+        metricsData = self._metrics.run(image.filename, preprocessorData, modelData)
+
+        return PipelineOut(
+            preprocessed=preprocessorData,
+            prediction=modelData,
+            metrics=metricsData
+        )

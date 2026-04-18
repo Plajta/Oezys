@@ -12,10 +12,10 @@ from PyQt6.QtWidgets import (
 )
 from PIL import Image
 
-from ..pipeline import Pipeline
+from ..pipeline import Pipeline, PipelineOut
 from .widgets.image_upload import ImageUploadWidget
+from .widgets.description_panel import DescriptionPanel
 from .widgets.metrics_panel import MetricsPanel
-from .widgets.results_panel import ResultsPanel
 
 
 class _GradientWidget(QWidget):
@@ -39,7 +39,10 @@ class _RunWorker(QThread):
     def run(self):
         try:
             output = self._pipeline.run(self._image)
-            self.finished.emit(output)
+            if output is None:
+                self.error.emit("Pipeline returned no output (not implemented yet)")
+            else:
+                self.finished.emit(output)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -49,6 +52,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._pipeline = pipeline or Pipeline()
         self._worker: _RunWorker | None = None
+        self._current_path: str = ""
         self._setup_window()
         self._build_ui()
 
@@ -138,7 +142,7 @@ class MainWindow(QMainWindow):
         self._run_btn = QPushButton("Run Analysis")
         self._run_btn.setFixedHeight(38)
         self._run_btn.setEnabled(False)
-        # self._run_btn.clicked.connect(self._run_pipeline)
+        self._run_btn.clicked.connect(self._run_pipeline)
         layout.addWidget(self._run_btn)
 
         return panel
@@ -149,18 +153,19 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        self._results = ResultsPanel()
-        self._results.setMinimumHeight(160)
-        layout.addWidget(self._results)
+        self._description = DescriptionPanel()
+        self._description.setMinimumHeight(120)
+        layout.addWidget(self._description)
 
         self._metrics = MetricsPanel()
         layout.addWidget(self._metrics, stretch=1)
 
         return panel
 
-    def _on_image_loaded(self, image: Image.Image):
+    def _on_image_loaded(self, image: Image.Image, path: str):
+        self._current_path = path
         self._run_btn.setEnabled(True)
-        self._results.clear()
+        self._description.clear()
         self._metrics.clear()
         self._status.showMessage("Image loaded — ready to analyse")
 
@@ -170,15 +175,15 @@ class MainWindow(QMainWindow):
             return
 
         self._run_btn.setEnabled(False)
+        self._description.update_info(self._current_path)
         self._status.showMessage("Running analysis…")
 
-        # self._worker = _RunWorker(self._pipeline, image)
-        # self._worker.finished.connect(self._on_pipeline_done)
-        # self._worker.error.connect(self._on_pipeline_error)
+        self._worker = _RunWorker(self._pipeline, image)
+        self._worker.finished.connect(self._on_pipeline_done)
+        self._worker.error.connect(self._on_pipeline_error)
         self._worker.start()
 
-    def _on_pipeline_done(self, output: PipelineOutput):
-        self._results.update_result(output.prediction)
+    def _on_pipeline_done(self, output: PipelineOut):
         self._metrics.update_metrics(output.metrics)
         self._run_btn.setEnabled(True)
         self._status.showMessage(

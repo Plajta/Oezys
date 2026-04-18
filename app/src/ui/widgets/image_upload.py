@@ -5,20 +5,24 @@ from PIL import Image
 
 
 class ImageUploadWidget(QWidget):
-    image_loaded = pyqtSignal(object)  # emits PIL.Image.Image
+    image_loaded = pyqtSignal(object, str)  # emits (PIL.Image.Image, path)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._image: Image.Image | None = None
+        self._path: str = ""
         self._build_ui()
         self.setAcceptDrops(True)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         self._preview = QLabel("Drop image here\nor click Browse")
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview.setContentsMargins(0, 0, 0, 0)
         self._preview.setMinimumSize(320, 280)
         self._preview.setStyleSheet(
             "border: 2px dashed #538AC1; border-radius: 8px; color: #538AC1; font-size: 14px; font-family: 'Open Sans', sans-serif;"
@@ -39,6 +43,7 @@ class ImageUploadWidget(QWidget):
             self._load_path(path)
 
     def _load_path(self, path: str):
+        self._path = path
         self._image = Image.open(path)
         pixmap = QPixmap(path).scaled(
             self._preview.width(),
@@ -47,8 +52,9 @@ class ImageUploadWidget(QWidget):
             Qt.TransformationMode.SmoothTransformation,
         )
         self._preview.setPixmap(pixmap)
-        self._preview.setStyleSheet("border: 2px solid #00B3DB; border-radius: 8px;")
-        self.image_loaded.emit(self._image)
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview.setStyleSheet("border: 2px solid #00B3DB; border-radius: 8px; padding: 0px;")
+        self.image_loaded.emit(self._image, self._path)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
