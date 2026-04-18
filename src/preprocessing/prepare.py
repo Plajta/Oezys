@@ -47,7 +47,7 @@ def is_spm_file(filepath):
     try:
         with open(filepath, 'rb') as f:
             first_line = f.read(15).decode('ascii', errors='ignore')
-            if first_line.startswith('\*File list'):
+            if first_line.startswith('\\*File list'):
                 return True
     except Exception:
         pass
