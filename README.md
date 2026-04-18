@@ -1,7 +1,6 @@
 # RadBrecim
 We cooking on Kosice i guess?
 
-<<<<<<< HEAD
 ## Instalation
 
 ```bash
@@ -9,7 +8,6 @@ python3 -m venv env
 source env/bin/activate
 pip install -r requirements.txt
 ```
-=======
 ## Techstack
 - `Weights and Biases`
 - `Pytorch Lightning`
@@ -25,4 +23,3 @@ pip install -r requirements.txt
 - [ ] Integrate andri's cooking
 - [ ] Set ResNet18 for train
 - [ ] Utilize Weights and Biases
->>>>>>> 83385fc (added wandb dependency)
