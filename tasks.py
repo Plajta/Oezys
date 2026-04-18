@@ -1,8 +1,18 @@
 from invoke import task
+
+#
+# Preprocessing imports
+#
 from src.preprocessing.config import CONFIG
 from src.preprocessing.download import download_data
 from src.preprocessing.prepare import prepare_datas, prepare_experimental, prepare_imaginary_datas
 from src.preprocessing.cleaner import remove_raw_data, remove_clean_data, remove_all, remove_zip
+
+#
+# Trainer imports
+#
+from src.models.trainer import train_nn_model
+from src.models.data import DataInspector
 
 from pathlib import Path
 from os.path import join
@@ -31,6 +41,7 @@ def prepare(ctx, clean=None):
 
 
 @task
+<<<<<<< HEAD
 def experimental(ctx, clean=False):
     """Generate direction-map images from clean dataset into data/clean/exp/"""
     import shutil, os
@@ -46,3 +57,15 @@ def imaginary(ctx, clean=False):
     if clean and os.path.exists(CONFIG.imaginary_dir):
         shutil.rmtree(CONFIG.imaginary_dir)
     prepare_imaginary_datas(CONFIG.raw_dir, CONFIG.imaginary_dir, CONFIG.classes_raw_dirs)
+=======
+def train_nn(ctx):
+    """RadBrecim Neural training sequence"""
+    train_nn_model(ABS_PATH)
+
+
+@task
+def inspect_dataset(ctx):
+    """RadBrecim Dataset inspector"""
+    data_inspector = DataInspector(ABS_PATH)
+    data_inspector.debug_dataloader(n_batches=3)
+>>>>>>> 7a6ae4d (Finally loading the data)
