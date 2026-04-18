@@ -8,7 +8,13 @@ from sklearn.preprocessing import normalize
 
 TAG = "PREPARER"
 
-def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
+def prepare_image(path: str):
+    Z = convertAFMtoArray(path)
+    norm = Z / np.linalg.norm(Z)
+    return norm
+
+
+def prepare_datas(input_dir: str, output_dir: str, classes_raw_dirs: dict):
     LOGI(TAG, f"Preparing data from {input_dir} to {output_dir}")
     sentinel_file = os.path.join(output_dir, ".prepare_done")
     if os.path.exists(sentinel_file):
@@ -23,9 +29,8 @@ def prepare_data(input_dir: str, output_dir: str, classes_raw_dirs: dict):
                 if entry.is_file() and is_spm_file(entry.path):
                     coverted_path = os.path.join(output_dir, "imgs", str(index) + ".bmp")
                     label_path = os.path.join(output_dir, "labels", str(index) + ".txt")
-                    Z = convertAFMtoArray(entry.path)
-                    norm = Z / np.linalg.norm(Z)
-                    plt.imsave(coverted_path, norm, cmap='afmhot')
+                    img = prepare_image(entry.path)
+                    plt.imsave(coverted_path, img, cmap='afmhot')
                     print(f"Saved successfully as {coverted_path}")
                     with open(label_path, 'w') as f:
                         f.write(str(classes_raw_dirs[raw_dir]))
