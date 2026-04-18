@@ -41,7 +41,6 @@ def prepare(ctx, clean=None):
 
 
 @task
-<<<<<<< HEAD
 def experimental(ctx, clean=False):
     """Generate direction-map images from clean dataset into data/clean/exp/"""
     import shutil, os
@@ -57,15 +56,14 @@ def imaginary(ctx, clean=False):
     if clean and os.path.exists(CONFIG.imaginary_dir):
         shutil.rmtree(CONFIG.imaginary_dir)
     prepare_imaginary_datas(CONFIG.raw_dir, CONFIG.imaginary_dir, CONFIG.classes_raw_dirs)
-=======
+
+@task
 def train_nn(ctx):
     """RadBrecim Neural training sequence"""
     train_nn_model(ABS_PATH)
-
 
 @task
 def inspect_dataset(ctx):
     """RadBrecim Dataset inspector"""
     data_inspector = DataInspector(ABS_PATH)
     data_inspector.debug_dataloader(n_batches=3)
->>>>>>> 7a6ae4d (Finally loading the data)
