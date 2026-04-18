@@ -2,11 +2,12 @@ from src.models.data import TearDataloader, TearAggregator
 from src.models.data import load_config, stratified_split
 from lightning.pytorch.loggers import WandbLogger
 from src.models.nn_model import ResNet18Model
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 from src.logger.logger import LOGI, LOGE
 from os.path import join
 
 import lightning as L
+import numpy as np
 import torch
 
 TAG = "TRAINER"
@@ -34,6 +35,7 @@ def run_full_pipeline(abs_path):
 
     # Stratified splitting + automatic augmentation on-the-grab
     labels, images = aggregator.extract()
+
     train, test, val = stratified_split(labels, images, data_config, DEVICE)
 
     train_loader = TearDataloader(train, dataloader_config)
@@ -53,8 +55,20 @@ def run_full_pipeline(abs_path):
         mode="max"
     )
 
+    early_stop_callback = EarlyStopping(
+        monitor="val_loss",
+        patience=10, # Stop if no improvement for 10 epochs
+        mode="min"
+    )
+
+    # Weight for every class (because of unbalanced dataset)
+    unique_classes, counts = np.unique(train.labels, return_counts=True)
+    total_train_samples = len(train.labels)
+    num_classes = len(unique_classes)
+    weights = total_train_samples / (num_classes * counts)
+
     # Model setup
-    resnet18 = ResNet18Model(resnet_config)
+    resnet18 = ResNet18Model(resnet_config, class_weights=weights)
 
     # Model training
     model_trainer = L.Trainer(
@@ -62,8 +76,8 @@ def run_full_pipeline(abs_path):
         accelerator="auto",
         devices=1,
         logger=wandb_logger,
-        callbacks=[checkpoint_callback],
-        log_every_n_steps=3
+        callbacks=[checkpoint_callback, early_stop_callback],
+        log_every_n_steps=3,
     )
     model_trainer.fit(
         model=resnet18,
@@ -73,4 +87,4 @@ def run_full_pipeline(abs_path):
 
     # Model testing
     LOGI(TAG, "Starting NN testing sequence...")
-    model_trainer.test(resnet18, dataloaders=test_loader, ckpt_path="best")
+    model_trainer.test(resnet18, dataloaders=test_loader, ckpt_path="best", weights_only=False)

@@ -203,11 +203,9 @@ class TearDataset(Dataset):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         image = self.transform(image)
+        label_idx = torch.tensor(int(self.labels[idx]) - 1, dtype=torch.long)
 
-        label_idx = int(self.labels[idx]) - 1
-        one_hot_label = F.one_hot(torch.tensor(label_idx), num_classes=self.num_classes)
-
-        return image, one_hot_label
+        return image, label_idx
 
     def transform(self, img):
         if self.dataset_type == "train":

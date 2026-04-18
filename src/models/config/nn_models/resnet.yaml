@@ -1,4 +1,5 @@
 lr: 1e-3
+weight_decay: 1e-4
 num_classes: 5
-epochs: 15
+epochs: 50
 checkpoint_path: "checkpoints/resnet18"

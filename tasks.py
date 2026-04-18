@@ -12,7 +12,12 @@ from src.preprocessing.cleaner import remove_raw_data, remove_clean_data, remove
 # Trainer imports
 #
 from src.models.trainer import run_full_pipeline
-from src.models.data import DataInspector
+from src.models.data import DataInspector, load_config
+
+#
+# Inference module
+#
+from src.models.inference import inference_setup
 
 from pathlib import Path
 from os.path import join
@@ -91,3 +96,22 @@ def stash_checkpoints(ctx):
         orig_file_path = join(checkpoints_dir, filename)
         new_file_path = join(stashed_checkpoints_dir, f"{naming}{i}{filename}")
         shutil.move(orig_file_path, new_file_path)
+
+
+@task
+def run_inference(ctx):
+    resnet_config_path = "src/models/config/nn_models/resnet.yaml"
+    resnet_infer_config_path = "src/models/config/nn_models/resnet_inference.yaml"
+
+    resnet_config_abs_path = join(ABS_PATH, resnet_config_path)
+    inference_config = load_config(join(ABS_PATH, resnet_infer_config_path))
+
+    model_name = inference_config["model_name"]
+    checkpoint_path = "stashed_checkpoints"
+    imgs_path = "data/clean/imgs"
+
+    inference_setup(
+        checkpoint_path=join(checkpoint_path, model_name),
+        config_path=resnet_config_abs_path,
+        image_folder=imgs_path
+    )
