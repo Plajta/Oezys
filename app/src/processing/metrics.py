@@ -18,6 +18,7 @@ class MetricData:
         '''
         self.Datetime = datetime
         self.FileName = filename
+        self.FilePath = None
         self.Probabilities = probabilities
         self.labels = ["Healthy", "Diabetes", "Dry Eye Disease", "Multiple Sclerosis", "Primary Open-Angle Glaucoma"]
 
@@ -25,15 +26,16 @@ class Metrics:
     def __init__(self):
         pass
     
-    def run(self, preprocessed: PreprocessorData, prediction: ModelData, name: str = random.choice(["a","b","c","d"])) -> MetricData:
+    def run(self, preprocessed: PreprocessorData, prediction: ModelData, path: str = "") -> MetricData:
         from pathlib import Path
         metrics = MetricData()
         now = datetime.now()
         metrics.Datetime = now.strftime("%Y-%m-%d %H:%M:%S")
-        stem = Path(name).stem
-        suffix = Path(name).suffix
+        stem = Path(path).stem
+        suffix = Path(path).suffix
         ms = int(now.timestamp() * 1000)
         metrics.FileName = f"{stem}_{ms}{suffix}.bmp"
+        metrics.FilePath = path
         if prediction.Probabilities:
             raw = prediction.Probabilities
         else:

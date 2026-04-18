@@ -26,7 +26,7 @@ class Pipeline:
 
         preprocessorData = self._preprocessor.run(path)
         modelData = self._model.run(preprocessorData)
-        metricsData = self._metrics.run(preprocessorData, modelData)
+        metricsData = self._metrics.run(preprocessorData, modelData, path)
 
         return PipelineOut(
             preprocessed=preprocessorData,

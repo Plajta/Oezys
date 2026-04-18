@@ -14,10 +14,12 @@ from PyQt6.QtWidgets import (
 from PIL import Image
 
 from ..pipeline import Pipeline, PipelineOut
+from ..services.repository import Repository
 from .widgets.image_upload import ImageUploadWidget
 from .widgets.description_panel import DescriptionPanel
 from .widgets.loading_overlay import LoadingOverlay
 from .widgets.metrics_panel import MetricsPanel
+from .widgets.history_dialog import HistoryDialog
 
 
 class _GradientWidget(QWidget):
@@ -53,6 +55,7 @@ class MainWindow(QMainWindow):
     def __init__(self, pipeline: Pipeline | None = None):
         super().__init__()
         self._pipeline = pipeline or Pipeline()
+        self._repo = Repository()
         self._worker: _RunWorker | None = None
         self._current_path: str = ""
         self._setup_window()
@@ -130,6 +133,11 @@ class MainWindow(QMainWindow):
         subtitle = QLabel("Tear Film Disease Classifier")
         subtitle.setStyleSheet("font-size: 12px; color: #538AC1; font-family: 'Open Sans', sans-serif;")
         layout.addWidget(subtitle)
+
+        history_btn = QPushButton("History")
+        history_btn.setFixedWidth(90)
+        history_btn.clicked.connect(self._open_history)
+        layout.addWidget(history_btn)
         return header
 
     def _make_left_panel(self) -> QWidget:
@@ -196,8 +204,14 @@ class MainWindow(QMainWindow):
         self._overlay.stop()
         self._description.update_from_metrics(output.metrics)
         self._metrics.update_metrics(output.metrics)
+        self._repo.save(output.metrics)
         self._run_btn.setEnabled(True)
         self._status.showMessage("Analysis complete")
+
+    def _open_history(self):
+        records = self._repo.get_all()
+        dlg = HistoryDialog(records, parent=self)
+        dlg.exec()
 
     def _on_pipeline_error(self, msg: str):
         self._overlay.stop()
