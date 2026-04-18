@@ -64,7 +64,11 @@ def prepare_datas(input_dir: str, output_dir: str, classes_raw_dirs: dict):
 def convertAFMtoArray(afmraw_path: str):
     scan = pySPM.Bruker(afmraw_path)
     channel = scan.get_channel('Height Sensor')
-    pixels = channel.correct_lines().pixels
+    try:
+        pixels = channel.correct_lines().pixels
+    except ValueError:
+        pixels = channel.pixels
+        pixels = pixels - np.mean(pixels, axis=1, keepdims=True)
     
     try:
         from skimage.transform import rescale
@@ -210,7 +214,12 @@ def extract_afm_channel_scaled(scan, channel_name):
     
     if not channel: return None
     try:
-        pixels = channel.correct_lines().pixels
+        try:
+            pixels = channel.correct_lines().pixels
+        except ValueError:
+            pixels = channel.pixels
+            pixels = pixels - np.mean(pixels, axis=1, keepdims=True)
+            
         from skimage.transform import rescale
         sz = channel.size
         # Physical length per pixel
@@ -225,7 +234,12 @@ def extract_afm_channel_scaled(scan, channel_name):
             warnings.simplefilter("ignore")
             scaled = rescale(pixels, (scale_y, scale_x), anti_aliasing=True, preserve_range=True)
         return scaled
-    except:
+    except Exception as e:
+        if 'pixels' not in locals():
+            try:
+                pixels = channel.pixels
+            except:
+                return None
         return pixels
 
 def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst):
