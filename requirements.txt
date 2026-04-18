@@ -5,3 +5,6 @@ timm
 numpy
 matplotlib
 pySPM
+lightning
+invoke
+wandb
