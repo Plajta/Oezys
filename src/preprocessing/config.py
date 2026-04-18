@@ -19,6 +19,8 @@ class Config:
         # Lock paths absolutely relative to the repo's root folder
         self.raw_dir = os.path.join(repo_root, conf["preprocessing"]["raw_dir"])
         self.clean_dir = os.path.join(repo_root, conf["preprocessing"]["clean_dir"])
+        self.exp_dir = os.path.join(repo_root, conf["preprocessing"]["exp_dir"])
+        self.imaginary_dir = os.path.join(repo_root, conf["preprocessing"]["imaginary_dir"])
         self.classes_raw_dirs = json.loads(conf.get("preprocessing", "classes_raw_dirs"))
 
 

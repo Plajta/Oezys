@@ -39,8 +39,7 @@ class MetricsPanel(QWidget):
         probs = probs[:n]
         labels = labels[:n]
 
-        # Normalize safely (handle both 0–100 and 0–1)
-        values = [p / 100 if p > 1 else p for p in probs]
+        values = [p / 100 for p in probs]
 
         self._figure.clear()
         ax = self._figure.add_subplot(111)
