@@ -1,4 +1,4 @@
-# RadBrecim
+# Oezys project
 Running on Python version V3.12
 
 ## Instalation

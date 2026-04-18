@@ -11,11 +11,14 @@ from src.preprocessing.cleaner import remove_raw_data, remove_clean_data, remove
 #
 # Trainer imports
 #
-from src.models.trainer import train_nn_model
+from src.models.trainer import run_full_pipeline
 from src.models.data import DataInspector
 
 from pathlib import Path
 from os.path import join
+
+import shutil
+import os
 
 ABS_PATH = str(Path(__file__).parent)
 
@@ -57,13 +60,35 @@ def imaginary(ctx, clean=False):
         shutil.rmtree(CONFIG.imaginary_dir)
     prepare_imaginary_datas(CONFIG.raw_dir, CONFIG.imaginary_dir, CONFIG.classes_raw_dirs)
 
+
 @task
-def train_nn(ctx):
+def run_pipeline(ctx):
     """RadBrecim Neural training sequence"""
-    train_nn_model(ABS_PATH)
+    run_full_pipeline(ABS_PATH)
+
 
 @task
 def inspect_dataset(ctx):
     """RadBrecim Dataset inspector"""
     data_inspector = DataInspector(ABS_PATH)
     data_inspector.debug_dataloader(n_batches=3)
+
+
+@task
+def wandb_login(ctx):
+    ctx.run("wandb login", pty=True)
+
+
+@task
+def stash_checkpoints(ctx):
+    naming = input("Checkpoint names: ")
+    directory = input("Directory: ")
+
+    checkpoints_dir = join(ABS_PATH, "checkpoints", directory)
+    stashed_checkpoints_dir = join(ABS_PATH, "stashed_checkpoints")
+
+    for i, filename in enumerate(os.listdir(checkpoints_dir)):
+        orig_file_path = join(checkpoints_dir, filename)
+        new_file_path = join(stashed_checkpoints_dir, f"{naming}{i}{filename}")
+        shutil.move(orig_file_path, new_file_path)
+

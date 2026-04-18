@@ -7,6 +7,7 @@ import albumentations as A
 import numpy as np
 import cv2
 import torch
+import torch.nn.functional as F
 from os import listdir
 from os.path import join
 
@@ -164,6 +165,7 @@ class TearDataset(Dataset):
         self.aug_config = config["augmentations"]
         self.dataset_type = dataset_type
         self.device = device
+        self.num_classes = config["num_classes"]
 
         size = self.aug_config["resize"]["size"]
         hflip_perc = self.aug_config["hflip"]["perc"]
@@ -201,8 +203,11 @@ class TearDataset(Dataset):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         image = self.transform(image)
-        image = image.to(self.device)
-        return image, self.labels[idx]
+
+        label_idx = int(self.labels[idx]) - 1
+        one_hot_label = F.one_hot(torch.tensor(label_idx), num_classes=self.num_classes)
+
+        return image, one_hot_label
 
     def transform(self, img):
         if self.dataset_type == "train":

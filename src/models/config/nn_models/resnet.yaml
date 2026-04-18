@@ -1,2 +1,4 @@
-resnet:
-  lr: 1e-3
+lr: 1e-3
+num_classes: 5
+epochs: 15
+checkpoint_path: "checkpoints/resnet18"
