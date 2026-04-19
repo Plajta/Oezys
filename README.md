@@ -1,4 +1,6 @@
 # Oezys project
+<img width="300" alt="oezys_logo" src="https://github.com/user-attachments/assets/38bc22a4-0fc9-41eb-b0f1-b069b4ca396e" />
+
 Running on Python version V3.12
 
 ## Instalation
