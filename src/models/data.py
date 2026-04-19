@@ -133,18 +133,15 @@ class TearAggregator:
         self.labels_path = labels_path
         self.imgs_path = imgs_path
 
-        # leave images in path format
+        # Images
         images_list = listdir(self.imgs_path)
-        self.images = [join(imgs_path, f) for f in sorted(images_list, key=self.sort_by_idx)]
+        self.images = [join(imgs_path, f) for f in images_list]
 
-        # label setup
-        labels_list = listdir(self.labels_path)
-        label_paths = sorted(labels_list, key=self.sort_by_idx)
+        # Label setup
         self.labels = [0] * len(self.images)
-
-        # read labels according to classes
-        for i, label_name in enumerate(label_paths):
-            self.labels[i] = int(self.read_resource(join(self.labels_path, label_name)))
+        for i, image_path in enumerate(self.images):
+            label_path = image_path.replace("imgs", "labels").replace(".bmp", ".txt")
+            self.labels[i] = int(self.read_resource(label_path))
 
     def sort_by_idx(self, str_name: str):
         return int(str_name.split('.')[0])

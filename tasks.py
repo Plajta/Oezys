@@ -17,7 +17,7 @@ from src.models.data import DataInspector, load_config
 #
 # Inference module
 #
-from src.models.inference import inference_setup
+from models.test_inference import inference_setup
 
 from pathlib import Path
 from os.path import join
