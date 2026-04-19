@@ -8,9 +8,11 @@ from torch import nn
 
 
 class LinearMoE(L.LightningModule):
-    def __init__(self, num_models=3, num_classes=5):
+    def __init__(self, config, num_models=3, num_classes=5, class_weights=None):
         super().__init__()
-
+        self.save_hyperparameters()
+        self.config = config
+        self.num_classes = num_classes
         input_dim = num_models * num_classes
 
         self.classifier = nn.Sequential(
@@ -20,8 +22,56 @@ class LinearMoE(L.LightningModule):
             nn.Linear(32, num_classes)
         )
 
+        if class_weights is not None:
+            self.register_buffer("class_weights", torch.tensor(class_weights, dtype=torch.float32))
+        else:
+            self.class_weights = None
+
+        # Metrics setup
+        self.train_acc = Accuracy(task="multiclass", num_classes=self.num_classes)
+        self.val_acc = Accuracy(task="multiclass", num_classes=self.num_classes)
+        self.test_acc = Accuracy(task="multiclass", num_classes=self.num_classes)
+
+        # F1 score setup
+        self.val_f1 = F1Score(task="multiclass", num_classes=self.num_classes, average="macro")
+        self.test_f1 = F1Score(task="multiclass", num_classes=self.num_classes, average="macro")
+
     def forward(self, x):
         return self.classifier(x)
+
+    def _shared_step(self, batch):
+        # x jsou zřetězené predikce expertů: [batch, num_models * num_classes]
+        x, y = batch
+        logits = self(x)
+        loss = F.cross_entropy(logits, y, weight=self.class_weights)
+        preds = torch.argmax(logits, dim=1)
+        return loss, preds, y
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch # x: [batch, 10], y: [batch]
+        logits = self(x)
+        loss = F.cross_entropy(logits, y, weight=self.class_weights)
+
+        self.train_acc(logits, y)
+        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_acc", self.train_acc, prog_bar=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        logits = self(x)
+        loss = F.cross_entropy(logits, y, weight=self.class_weights)
+
+        self.val_acc(logits, y)
+        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_acc", self.val_acc, prog_bar=True)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(
+            self.parameters(),
+            lr=float(self.config["lr"]),
+            weight_decay=float(self.config["weight_decay"])
+        )
 
 
 class ResNet18Model(L.LightningModule):

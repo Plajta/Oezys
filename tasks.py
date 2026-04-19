@@ -75,7 +75,15 @@ def run_pipeline(ctx):
 @task
 def run_moe_pipeline(ctx):
     """Oezys MoE training sequence"""
-    run_top_pipeline(ABS_PATH)
+
+    rf_model_best = join(ABS_PATH, "src/models/config/cl_models/tear_classifier.pkl")
+    resnet_model_best = join(ABS_PATH, "checkpoints/resnet18/best-checkpoint-epoch=25-val_acc=0.88.ckpt")
+
+    run_top_pipeline(
+        ABS_PATH,
+        rf_model_best,
+        resnet_model_best
+    )
 
 
 @task

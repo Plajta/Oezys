@@ -1,7 +1,7 @@
 from src.models.data import TearDataloader, TearAggregator
 from src.models.data import load_config, stratified_split
 from lightning.pytorch.loggers import WandbLogger
-from src.models.nn_model import ResNet18Model
+from src.models.nn_model import ResNet18Model, LinearMoE
 from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 from src.logger.logger import LOGI, LOGE
 from os.path import join
@@ -91,9 +91,92 @@ def run_full_pipeline(abs_path):
     model_trainer.test(resnet18, dataloaders=test_loader, ckpt_path="best", weights_only=False)
 
 
-def run_top_pipeline():
+def run_top_pipeline(
+        abs_path,
+        rf_model_path,
+        resnet_ckpt_path
+    ):
+    LOGI(TAG, "Setting up expert models...")
+
+    from src.models.cl_inference import TearClassifier
+    from src.models.nn_inference import ResNetInference
+
+    rf_expert = TearClassifier(rf_model_path)
+    resnet_expert = ResNetInference(resnet_ckpt_path)
+    experts = (rf_expert, resnet_expert)
+
     LOGI(TAG, "Setting up dataset...")
 
-    
+    config_path = join(abs_path, "src/models/config")
+    moe_config = load_config(join(config_path, "nn_models/moe_model.yaml"))
+    data_config = load_config(join(config_path, "data.yaml"))
+
+    dataloader_config = data_config["dataloader"]
+
+    label_dir_path = join(abs_path, "data/imaginary/labels")
+    img_dir_path = join(abs_path, "data/imaginary/imgs")
+
+    aggregator = TearAggregator(
+        data_config,
+        label_dir_path,
+        img_dir_path
+    )
+
+    labels, images = aggregator.extract()
+
+    train, test, val = stratified_split(labels, images, data_config, DEVICE, model_type="moe", experts=experts)
+
+    train_loader = TearDataloader(train, dataloader_config)
+    test_loader = TearDataloader(test, dataloader_config)
+    val_loader = TearDataloader(val, dataloader_config)
 
     LOGI(TAG, "Startin MoE-NN testing sequence")
+
+    # Logs to W&B
+    wandb_logger = WandbLogger(project="ResNet18-FineTune", name="moe_experiment_1")
+
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=join(abs_path, moe_config["checkpoint_path"]),
+        filename="best-checkpoint-{epoch:02d}-{val_acc:.2f}",
+        save_top_k=1,
+        monitor="val_acc",
+        mode="max"
+    )
+
+    early_stop_callback = EarlyStopping(
+        monitor="val_loss",
+        patience=15, # Stop if no improvement for 10 epochs
+        mode="min"
+    )
+
+    # Weight for every class (because of unbalanced dataset)
+    unique_classes, counts = np.unique(train.labels, return_counts=True)
+    total_train_samples = len(train.labels)
+    num_classes = len(unique_classes)
+    weights = total_train_samples / (num_classes * counts)
+
+    linear_moe = LinearMoE(
+        config=moe_config,
+        class_weights=weights,
+        num_models=2,
+        num_classes=5
+    )
+
+    model_trainer = L.Trainer(
+        max_epochs=moe_config["epochs"],
+        accelerator="auto",
+        devices=1,
+        logger=wandb_logger,
+        callbacks=[checkpoint_callback, early_stop_callback],
+        log_every_n_steps=3,
+        accumulate_grad_batches=2
+    )
+    model_trainer.fit(
+        model=linear_moe,
+        train_dataloaders=train_loader,
+        val_dataloaders=val_loader
+    )
+
+    # Model testing
+    LOGI(TAG, "Starting NN testing sequence...")
+    model_trainer.test(linear_moe, dataloaders=test_loader, ckpt_path="best", weights_only=False)

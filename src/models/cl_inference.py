@@ -10,7 +10,7 @@ class TearClassifier:
     def __init__(self, model_path):
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found: {model_path}")
-        
+
         data = pickle.load(open(model_path, "rb"))
         self.model = data['model']
         self.scaler = data['scaler']

@@ -106,7 +106,7 @@ class DataInspector:
         print("\nDone.")
 
 
-def stratified_split(labels, images, config, device):
+def stratified_split(labels, images, config, device, model_type = "resnet", experts=None):
     train_labels, temp_labels, train_images, temp_images = train_test_split(
         labels, images,
         test_size=config["test_size"],
@@ -119,9 +119,16 @@ def stratified_split(labels, images, config, device):
         stratify=temp_labels
     )
 
-    train_dataset = TearDataset(train_labels, train_images, config, "train", device)
-    test_dataset = TearDataset(test_labels, test_images, config, "test", device)
-    val_dataset = TearDataset(val_labels, val_images, config, "val", device)
+    if model_type == "moe" and experts is not None:
+        # Switch to Linear MoE dataset, which have aggressive augmentations
+        rf_expert, resnet_expert = experts
+        train_dataset = MoEDataset(train_labels, train_images, rf_expert, resnet_expert, config, "train")
+        test_dataset = MoEDataset(val_labels, val_images, rf_expert, resnet_expert, config, "val")
+        val_dataset = MoEDataset(test_labels, test_images, rf_expert, resnet_expert, config, "test")
+    else:
+        train_dataset = TearDataset(train_labels, train_images, config, "train", device)
+        test_dataset = TearDataset(test_labels, test_images, config, "test", device)
+        val_dataset = TearDataset(val_labels, val_images, config, "val", device)
 
     return train_dataset, test_dataset, val_dataset
 
@@ -152,6 +159,112 @@ class TearAggregator:
 
     def extract(self):
         return self.labels, self.images
+
+
+class MoEDataset(Dataset):
+    def __init__(self, labels, images, rf_expert, resnet_expert, config, mode="train"):
+        self.labels = labels
+        self.images = images
+        self.rf_expert = rf_expert     # cl_inference.TearClassifier
+        self.resnet_expert = resnet_expert # nn_inference.ResNetInference
+        self.mode = mode
+
+        # Tvůj Agresivní setup z yaml/configu
+        self.transform = A.Compose([
+            A.Rotate(limit=90, p=0.8),
+            A.RandomBrightnessContrast(p=0.5),
+            A.ElasticTransform(alpha=1, sigma=50, p=0.5), # Tohle RF fakt nesnáší
+            A.CoarseDropout(max_holes=8, max_height=20, max_width=20, p=0.5),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+        ]) if mode == "train" else None
+
+    def __len__(self):
+        return len(self.images)
+    
+    def __getitem__(self, idx):
+        img_path = self.images[idx]
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Label 1-5 -> 0-4
+        label = torch.tensor(int(self.labels[idx]) - 1, dtype=torch.long)
+
+        if self.transform:
+            image = self.transform(image=image)["image"]
+
+        # 1. RF Expert (potřebuje cestu nebo pole, tvůj cl_inference bere cestu)
+        # Hack: Protože cl_inference bere cestu, RF neuvidí tu augmentaci. 
+        # Fix: Pojďme vytáhnout probas přímo z tvých expertů.
+        rf_probas = self.rf_expert.predict_proba(img_path) # list [5]
+        
+        # 2. ResNet Expert
+        with torch.no_grad():
+            # Tady pozor: resnet_expert.run vrací list listů, bereme první
+            resnet_probas = self.resnet_expert.run(img_path)[0] # list [5]
+
+        # Spojíme do vektoru délky 10
+        combined = torch.tensor(list(rf_probas) + resnet_probas, dtype=torch.float32)
+        
+        return combined, label
+
+
+class AggresiveTearDataset(Dataset):
+    def __init__(self, labels, images, config, dataset_type, device):
+        self.labels = labels
+        self.images = images
+        self.aug_config = config["augmentations"]
+        self.dataset_type = dataset_type
+        self.device = device
+        self.num_classes = config["num_classes"]
+
+        size = self.aug_config["resize"]["size"]
+        hflip_perc = self.aug_config["hflip"]["perc"]
+        rotate_perc = self.aug_config["rotate"]["perc"]
+        rotate_limit = self.aug_config["rotate"]["limit"]
+        contrast_perc = self.aug_config["contrast"]["perc"]
+        gauss_noise_perc = self.aug_config["gauss_noise"]["perc"]
+        norm_mean_vals = self.aug_config["normalize"]["mean_vals"]
+        norm_std_vals = self.aug_config["normalize"]["std_vals"]
+
+        # Albumentation transform definitions
+        self.train_transform = A.Compose([
+            A.Resize(size, size),
+            A.HorizontalFlip(p=hflip_perc),
+            A.VerticalFlip(p=0.5),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
+            A.Rotate(limit=rotate_limit, p=rotate_perc),
+            A.RandomBrightnessContrast(p=contrast_perc),
+            A.GaussNoise(p=gauss_noise_perc),
+            A.Normalize(mean=norm_mean_vals, std=norm_std_vals),
+            ToTensorV2()
+        ])
+
+        self.val_transform = A.Compose([
+            A.Resize(size, size),
+            A.Normalize(mean=norm_mean_vals, std=norm_std_vals),
+            ToTensorV2()
+        ])
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        img_path = self.images[idx]
+
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        image = self.transform(image)
+        label_idx = torch.tensor(int(self.labels[idx]) - 1, dtype=torch.long)
+
+        return image, label_idx
+
+    def transform(self, img):
+        if self.dataset_type == "train":
+            return self.train_transform(image=img)["image"]
+        else:
+            # Is val or test
+            return self.val_transform(image=img)["image"]
 
 
 class TearDataset(Dataset):

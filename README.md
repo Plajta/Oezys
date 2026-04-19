@@ -27,11 +27,11 @@ pip install -r requirements.txt
 - [x] Set ResNet18 for train
 - [x] Utilize Weights and Biases
 - [x] Wire Data inspector to validate train data
-- [ ] Setup Model API that will be called by App
+- [x] Setup Model API that will be called by App
 - [x] Finish augmentations
 - [x] Send to GPU
 - [x] Add debug info in vscode
 - [x] Rewire all to andri's new data preprocessing
+- [x] Start drawing out pipeline
 - [ ] ML + DL ensemble MoE
-- [ ] Start drawing out pipeline
-
+- [ ] Finish working on MoE
