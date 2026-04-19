@@ -26,9 +26,9 @@ class Metrics:
         ms = int(now.timestamp() * 1000)
         metrics.FileName = f"{Path(path).stem}_{ms}{Path(path).suffix}.bmp"
         metrics.FilePath = path
-        if not prediction.Probabilities:
+        if not predictions[0].Probabilities:
             print("[Metrics] No model output — probabilities unavailable", file=sys.stderr)
             metrics.Probabilities = None
             return metrics
-        metrics.Probabilities = [round(p * 100, 2) for p in prediction.Probabilities]
+        metrics.Probabilities = [round(p * 100, 2) for p in predictions[0].Probabilities]
         return metrics

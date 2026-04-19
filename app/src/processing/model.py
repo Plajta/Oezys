@@ -1,4 +1,5 @@
 import os
+import importlib.util
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,8 +8,18 @@ from PIL import Image
 
 from .preprocessing import PreprocessorData
 
+# Load nn_inference by absolute path to avoid collision with app's own 'src' package
+_NN_INFERENCE_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "src", "models", "nn_inference.py")
+)
+_spec = importlib.util.spec_from_file_location("oezys_nn_inference", _NN_INFERENCE_PATH)
+_nn_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_nn_mod)
+ResNetInference = _nn_mod.ResNetInference
+
 NUM_CLASSES = 5
 _MODEL_PATH = os.path.join(os.path.dirname(__file__), "classifier_best.pth")
+_DANIEL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "run32best-checkpoint-epoch=36-val_acc=0.85.ckpt")
 
 _VAL_TF = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -42,9 +53,11 @@ class ModelData:
 
 
 class Model:
-    def __init__(self, model_path: str | None = None):
+    def __init__(self, model_path: str | None = None, daniel_model_path: str | None = None):
         self._model_path = model_path or _MODEL_PATH
+        self._daniel_model_path = daniel_model_path or _DANIEL_MODEL_PATH
         self._model: nn.Module | None = None
+        self._daniel_model: ResNetInference | None = None
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def _ensure_loaded(self):
@@ -56,8 +69,14 @@ class Model:
         net.to(self._device).eval()
         self._model = net
 
+    def _ensure_daniel_loaded(self):
+        if self._daniel_model is not None:
+            return
+        self._daniel_model = ResNetInference(self._daniel_model_path)
+
     def run(self, preprocessed: PreprocessorData) -> list[ModelData]:
         self._ensure_loaded()
+        self._ensure_daniel_loaded()
 
         arr = preprocessed.image  # float32 H×W×3, per-channel [0,1]
         arr_u8 = (arr * 255).clip(0, 255).astype(np.uint8)
@@ -68,17 +87,18 @@ class Model:
             logits = self._model(tensor)
             probs = torch.softmax(logits, dim=1).squeeze().cpu().tolist()
 
-        pred = int(torch.tensor(probs).argmax())
+        probs_2 = self._daniel_model.run_array(arr_u8)
 
-
+        pred_1 = int(torch.tensor(probs).argmax())
+        pred_2 = int(torch.tensor(probs_2).argmax())
 
         res = [
-            ModelData(label=LABELS[pred], probabilities=probs), 
-            ModelData(label=LABELS[pred], probabilities=),
-            ModelData(label=LABELS[pred], probabilities=)
-            ]
+            ModelData(label=LABELS[pred_1], probabilities=probs),
+            ModelData(label=LABELS[pred_2], probabilities=probs_2),
+        ]
 
-
+        print(f"[Model] Predicted: {res[0].Label} with probabilities {res[0].Probabilities}")
+        print(f"[Model] Daniel's model predicted: {res[1].Label} with probabilities {res[1].Probabilities}")
 
         return res
 

@@ -72,12 +72,18 @@ class ResNetInference:
     def run(self, path):
         img_bgr = cv2.imread(path)
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        return self.run_array(img_rgb)
 
-        tensor = self.transform(image=img_rgb)["image"].unsqueeze(0).to(self.device)
-        logits = self.model(tensor)
+    def run_array(self, img_rgb_uint8) -> list[float]:
+        """Accept H×W×3 uint8 RGB numpy array directly."""
+        import numpy as np
+        if img_rgb_uint8.dtype != np.uint8:
+            img_rgb_uint8 = (img_rgb_uint8 * 255).clip(0, 255).astype(np.uint8)
+        tensor = self.transform(image=img_rgb_uint8)["image"].unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            logits = self.model(tensor)
         probs = torch.softmax(logits, dim=1)
-
-        return probs.tolist()
+        return probs.squeeze().tolist()
 
 
 if __name__ == "__main__":
