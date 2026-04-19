@@ -18,14 +18,19 @@ pip install -r requirements.txt
 
 ## TODO
 
-- [ ] Finish Dataloader
-- [ ] Finish Dataset
+- [x] Finish Dataloader
+- [x] Finish Dataset
 - [x] Integrate invoke
 - [x] Integrate andri's cooking
-- [ ] Set ResNet18 for train
-- [ ] Utilize Weights and Biases
-- [ ] Wire Data inspector to validate train data
+- [x] Set ResNet18 for train
+- [x] Utilize Weights and Biases
+- [x] Wire Data inspector to validate train data
 - [ ] Setup Model API that will be called by App
 - [x] Finish augmentations
-- [ ] Send to GPU!!!
+- [x] Send to GPU
 - [x] Add debug info in vscode
+- [x] Rewire all to andri's new data preprocessing
+- [ ] Speed up learning
+- [ ] ML + DL ensemble MoE
+- [ ] Start drawing out pipeline
+
