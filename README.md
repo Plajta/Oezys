@@ -3,7 +3,21 @@
     <img width="300" alt="oezys_logo" src="./doc/oezys_logo_transparent.png"/>
 </div>
 
-Running on Python version V3.12
+A HackKošice 2026 project about developing a disease detection software utilizing the teardrop crystal data. Currently implementing an ensemble of various models to test their detection capabilities.
+
+## Used models
+
+- *Finetuned ResNet18*
+- *Custom CNN*
+- *RandomForest method*
+
+## Techstack
+
+- `Weights and Biases`
+- `Pytorch Lightning`
+- `Albumentations`
+- `timm`
+- `invoke`
 
 ## Instalation
 
@@ -12,13 +26,6 @@ python3 -m venv env
 source env/bin/activate
 pip install -r requirements.txt
 ```
-## Techstack
-
-- `Weights and Biases`
-- `Pytorch Lightning`
-- `Albumentations`
-- `timm`
-- `invoke`
 
 ## TODO
 
