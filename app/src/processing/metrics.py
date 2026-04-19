@@ -19,7 +19,7 @@ class Metrics:
     def __init__(self):
         pass
 
-    def run(self, preprocessed: PreprocessorData, prediction: ModelData, path: str = "") -> MetricData:
+    def run(self, preprocessed: PreprocessorData, predictions: list[ModelData], path: str = "") -> MetricData:
         metrics = MetricData()
         now = datetime.now()
         metrics.Datetime = now.strftime("%Y-%m-%d %H:%M:%S")
