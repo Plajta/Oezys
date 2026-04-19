@@ -4,6 +4,24 @@ import torch
 import torch.nn.functional as F
 
 from torchmetrics.classification import Accuracy, F1Score
+from torch import nn
+
+
+class LinearMoE(L.LightningModule):
+    def __init__(self, num_models=3, num_classes=5):
+        super().__init__()
+
+        input_dim = num_models * num_classes
+
+        self.classifier = nn.Sequential(
+            nn.Linear(input_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(32, num_classes)
+        )
+
+    def forward(self, x):
+        return self.classifier(x)
 
 
 class ResNet18Model(L.LightningModule):

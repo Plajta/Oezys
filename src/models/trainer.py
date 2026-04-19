@@ -24,8 +24,8 @@ def run_full_pipeline(abs_path):
     dataloader_config = data_config["dataloader"]
 
     # Dataset path
-    label_dir_path = join(abs_path, "data/clean/labels")
-    img_dir_path = join(abs_path, "data/clean/imgs")
+    label_dir_path = join(abs_path, "data/imaginary/labels")
+    img_dir_path = join(abs_path, "data/imaginary/imgs")
 
     aggregator = TearAggregator(
         data_config,
@@ -78,7 +78,7 @@ def run_full_pipeline(abs_path):
         logger=wandb_logger,
         callbacks=[checkpoint_callback, early_stop_callback],
         log_every_n_steps=3,
-        accumulate_grad_batches=4
+        accumulate_grad_batches=2
     )
     model_trainer.fit(
         model=resnet18,
