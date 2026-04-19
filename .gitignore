@@ -1,6 +1,17 @@
 env
 data
+*.pkl
 */__pycache__/
 
 */*/__pycache__/
+
+# Andri wtf is that
 hovno
+
+# Wandb autogen
+tea_debug.log
+wandb
+checkpoints
+
+!/stashed_checkpoints/.gitkeep
+/stashed_checkpoints/*

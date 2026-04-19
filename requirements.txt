@@ -8,8 +8,9 @@ pyspm
 lightning
 invoke
 wandb
-scikit-image>=0.25.0
+scikit-image
 seaborn
 pandas
 pathlib
 umap-learn
+opencv-python

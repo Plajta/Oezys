@@ -1,11 +1,29 @@
 from invoke import task
+
+#
+# Preprocessing imports
+#
 from src.preprocessing.config import CONFIG
 from src.preprocessing.download import download_data
 from src.preprocessing.prepare import prepare_datas, prepare_experimental, prepare_imaginary_datas
 from src.preprocessing.cleaner import remove_raw_data, remove_clean_data, remove_all, remove_zip
 
+#
+# Trainer imports
+#
+from src.models.trainer import run_full_pipeline
+from src.models.data import DataInspector, load_config
+
+#
+# Inference module
+#
+from src.models.inference import inference_setup
+
 from pathlib import Path
 from os.path import join
+
+import shutil
+import os
 
 ABS_PATH = str(Path(__file__).parent)
 
@@ -48,3 +66,54 @@ def imaginary(ctx, clean=False):
         shutil.rmtree(CONFIG.imaginary_dir)
     download_data(CONFIG.source_url, PATH_RAW)
     prepare_imaginary_datas(CONFIG.raw_dir, CONFIG.imaginary_dir, CONFIG.classes_raw_dirs)
+
+
+@task
+def run_pipeline(ctx):
+    """RadBrecim Neural training sequence"""
+    run_full_pipeline(ABS_PATH)
+
+
+@task
+def inspect_dataset(ctx):
+    """RadBrecim Dataset inspector"""
+    data_inspector = DataInspector(ABS_PATH)
+    data_inspector.debug_dataloader(n_batches=3)
+
+
+@task
+def wandb_login(ctx):
+    ctx.run("wandb login", pty=True)
+
+
+@task
+def stash_checkpoints(ctx):
+    naming = input("Checkpoint names: ")
+    directory = input("Directory: ")
+
+    checkpoints_dir = join(ABS_PATH, "checkpoints", directory)
+    stashed_checkpoints_dir = join(ABS_PATH, "stashed_checkpoints")
+
+    for i, filename in enumerate(os.listdir(checkpoints_dir)):
+        orig_file_path = join(checkpoints_dir, filename)
+        new_file_path = join(stashed_checkpoints_dir, f"{naming}{i}{filename}")
+        shutil.move(orig_file_path, new_file_path)
+
+
+@task
+def run_inference(ctx):
+    resnet_config_path = "src/models/config/nn_models/resnet.yaml"
+    resnet_infer_config_path = "src/models/config/nn_models/resnet_inference.yaml"
+
+    resnet_config_abs_path = join(ABS_PATH, resnet_config_path)
+    inference_config = load_config(join(ABS_PATH, resnet_infer_config_path))
+
+    model_name = inference_config["model_name"]
+    checkpoint_path = "stashed_checkpoints"
+    imgs_path = "data/clean/imgs"
+
+    inference_setup(
+        checkpoint_path=join(checkpoint_path, model_name),
+        config_path=resnet_config_abs_path,
+        image_folder=imgs_path
+    )
