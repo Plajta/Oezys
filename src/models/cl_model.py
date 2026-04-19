@@ -90,7 +90,6 @@ def extract_fft_features(image_gray):
 
 def image_to_feature_vector(image_path):
     img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
-    img = img[8:-55, 96:-96]
     img = cv2.resize(img, (512, 512), interpolation=cv2.INTER_AREA)
 
     features = {}
@@ -107,32 +106,35 @@ def load_dataset(imgs_dir, labels_dir):
     labels_dir = Path(labels_dir)
 
     for img_path in imgs_dir.iterdir():
+        if not img_path.stem.endswith("_0"):
+            continue
         label_path = labels_dir / (img_path.stem + ".txt") 
         rows.append({**image_to_feature_vector(img_path), "class": label_path.read_text().strip()})
 
     return pd.DataFrame(rows)
 
 
-def train_tear_classifier(df, test_size=0.2, random_state=42):
+def preprocess_data(df, test_size=0.2):
     X = df.drop("class", axis=1)
     y = LabelEncoder().fit_transform(df["class"])
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=y
+        X, y, test_size=test_size, stratify=y
     )
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+
+
+def train_tear_classifier(df, test_size=0.2):
+    X_train_scaled, X_test_scaled, y_train, y_test, scaler = preprocess_data(df, test_size)
     model = RandomForestClassifier(
-        n_estimators=100, class_weight="balanced", random_state=random_state
+        n_estimators=100, class_weight="balanced"
     )
     model.fit(X_train_scaled, y_train)
-
-    y_pred = model.predict(X_test_scaled)
-    print("--- Classification Report ---")
-    print(classification_report(y_test, y_pred))
 
     return model, scaler, X_test_scaled, y_test
 
@@ -153,7 +155,7 @@ def plot_umap_projection(df):
     features = df.drop("class", axis=1)
     scaled_data = StandardScaler().fit_transform(features)
 
-    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=42)
+    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1)
     embedding = reducer.fit_transform(scaled_data)
 
     plt.figure(figsize=(10, 8))
@@ -213,12 +215,26 @@ def load_data(config_path):
 
 def train_model(model_path, df):
     model, scaler, X_test, y_test = train_tear_classifier(df)
-    pickle.dump(model, open(model_path, "wb"))
+
+    y_pred = model.predict(X_test)
+    print("--- Classification Report ---")
+    print(classification_report(y_test, y_pred))
+
+    data = {'model': model, 'scaler': scaler}
+    pickle.dump(data, open(model_path, "wb"))
 
 def test_model(model_path, df):
-    model = pickle.load(open(model_path, "rb"))
-    print(model)
-    plot_feature_importance(model, df.drop("class", axis=1).columns)
+    from cl_inference import TearClassifier
+    classifier = TearClassifier(model_path)
+    
+    X = df.drop("class", axis=1)
+    y = LabelEncoder().fit_transform(df["class"])
+    X_scaled = classifier.scaler.transform(X)
+    
+    y_pred = classifier.model.predict(X_scaled)
+    print("--- Classification Report ---")
+    print(classification_report(y, y_pred))
+    plot_feature_importance(classifier.model, df.drop("class", axis=1).columns)
     plot_umap_projection(df)
     plot_feature_distributions(df)
 
