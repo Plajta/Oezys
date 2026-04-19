@@ -309,6 +309,37 @@ def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst)
             aug_idx += 1
     return aug_idx
 
+def prepare_imaginary_array(file_path: str):
+    """
+    Loads an AFM file and stacks three specific channels into an RGB-like array.
+    """
+    scan = pySPM.Bruker(file_path)
+                
+    # Fetch 3 distinct layers to make RGB imaginary stack
+    ch_r = extract_afm_channel_scaled(scan, "Height Sensor")
+    ch_g = extract_afm_channel_scaled(scan, "Amplitude Error")
+    ch_b = extract_afm_channel_scaled(scan, "Phase")
+    
+    # Fallback logic: if Height Sensor is missing, we can't proceed
+    if ch_r is None: 
+        return None 
+        
+    # If other channels are missing, use Height Sensor as a fallback for those channels
+    if ch_g is None: ch_g = ch_r
+    if ch_b is None: ch_b = ch_r
+    
+    # Align dimensions (in case of slight scaling differences)
+    min_h = min(ch_r.shape[0], ch_g.shape[0], ch_b.shape[0])
+    min_w = min(ch_r.shape[1], ch_g.shape[1], ch_b.shape[1])
+    
+    rgb = np.stack([
+        ch_r[:min_h, :min_w],
+        ch_g[:min_h, :min_w],
+        ch_b[:min_h, :min_w]
+    ], axis=-1)
+    
+    return rgb
+
 def prepare_imaginary_datas(raw_dir: str, imaginary_dir: str, classes_raw_dirs: dict):
     LOGI(TAG, f"Preparing imaginary from {raw_dir} to {imaginary_dir}")
     sentinel_file = os.path.join(imaginary_dir, ".imaginary_done")
@@ -325,40 +356,31 @@ def prepare_imaginary_datas(raw_dir: str, imaginary_dir: str, classes_raw_dirs: 
     total_imgs = 0
     for class_name, label_id in classes_raw_dirs.items():
         class_path = os.path.join(raw_dir, class_name)
-        if not os.path.exists(class_path): continue
+        if not os.path.exists(class_path): 
+            continue
         
         for entry in os.scandir(class_path):
             if entry.is_file() and is_spm_file(entry.path):
+                # Call the refactored function
                 rgb = prepare_imaginary_array(entry.path)
-                n_saved = augment_and_save_crops(rgb, f"imag_{class_name}_{file_idx}", label_id, imgs_dst, labels_dst)
+                
+                if rgb is None:
+                    LOGW(TAG, f"Skipping {entry.name}: Missing primary Height Sensor channel.")
+                    continue
+                
+                n_saved = augment_and_save_crops(
+                    rgb, 
+                    f"imag_{class_name}_{file_idx}", 
+                    label_id, 
+                    imgs_dst, 
+                    labels_dst
+                )
+                
                 total_imgs += n_saved
                 if file_idx % 10 == 0:
-                    LOGI(TAG, f"[imaginary] {entry.name} -> appended {n_saved} variations. Total generated so far: {total_imgs}")
+                    LOGI(TAG, f"[imaginary] {entry.name} -> {n_saved} variations. Total: {total_imgs}")
                 file_idx += 1
                 
     with open(sentinel_file, 'w') as f:
         f.write("done")
-    LOGI(TAG, f"Imaginary dataset ready! Generated exactly {total_imgs} images.")
-
-def prepare_imaginary_array(path: str):
-    scan = pySPM.Bruker(entry.path)
-                
-    # Fetch 3 distinct layers to make RGB imaginary stack
-    ch_r = extract_afm_channel_scaled(scan, "Height Sensor")
-    ch_g = extract_afm_channel_scaled(scan, "Amplitude Error")
-    ch_b = extract_afm_channel_scaled(scan, "Phase")
-    
-    if ch_r is None: continue  # Skip if no base height
-    if ch_g is None: ch_g = ch_r
-    if ch_b is None: ch_b = ch_r
-    
-    min_h = min(ch_r.shape[0], ch_g.shape[0], ch_b.shape[0])
-    min_w = min(ch_r.shape[1], ch_g.shape[1], ch_b.shape[1])
-    
-    rgb = np.stack([
-        ch_r[:min_h, :min_w],
-        ch_g[:min_h, :min_w],
-        ch_b[:min_h, :min_w]
-    ], axis=-1)
-    return rgb
-    
+    LOGI(TAG, f"Imaginary dataset ready! Generated {total_imgs} images.")
