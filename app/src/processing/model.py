@@ -13,7 +13,6 @@ _MODEL_PATH = os.path.join(os.path.dirname(__file__), "classifier_best.pth")
 _VAL_TF = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
 LABELS = {
@@ -60,7 +59,7 @@ class Model:
     def run(self, preprocessed: PreprocessorData) -> ModelData:
         self._ensure_loaded()
 
-        arr = preprocessed.image  # float32 H×W×3, already per-channel [0,1]
+        arr = preprocessed.image  # float32 H×W×3, per-channel [0,1]
         arr_u8 = (arr * 255).clip(0, 255).astype(np.uint8)
         pil_img = Image.fromarray(arr_u8, mode="RGB")
         tensor = _VAL_TF(pil_img).unsqueeze(0).to(self._device)

@@ -33,7 +33,7 @@ EPOCHS        = 3
 LR            = 1e-3
 LR_FINE       = 1e-4
 FREEZE_EPOCHS = 1   # epochs with frozen backbone
-VAL_SPLIT     = 0.2
+VAL_SPLIT     = 0.3
 SEED          = 42
 
 if torch.cuda.is_available():
@@ -52,18 +52,13 @@ print(f"Device: {DEVICE}")
 TRAIN_TF = transforms.Compose([
     transforms.ToPILImage(),
     transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.RandomRotation(15),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
 VAL_TF = transforms.Compose([
     transforms.ToPILImage(),
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
 

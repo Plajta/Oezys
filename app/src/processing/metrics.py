@@ -12,7 +12,7 @@ class MetricData:
         self.FileName = filename
         self.FilePath = None
         self.Probabilities = probabilities
-        self.labels = ["Healthy", "Diabetes", "Dry Eye Disease", "Multiple Sclerosis", "Primary Open-Angle Glaucoma"]
+        self.labels = ["Diabetes", "Primary Open-Angle Glaucoma", "Multiple Sclerosis", "Dry Eye Disease", "Healthy"]
 
 
 class Metrics:

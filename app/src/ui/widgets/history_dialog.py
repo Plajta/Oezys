@@ -11,7 +11,7 @@ from ...processing.metrics import MetricData
 from ...utils.afm import convertAFMtoImage, is_spm_file
 from PIL.ImageQt import ImageQt
 
-_LABELS = ["Healthy", "Diabetes", "Dry Eye", "M.Sclerosis", "Glaucoma"]
+_LABELS = ["Diabetes", "Glaucoma", "M.Sclerosis", "Dry Eye", "Healthy"]
 _COLUMNS = ["Date", "File"] + _LABELS + ["Prediction"]
 
 _STYLE = """
