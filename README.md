@@ -32,7 +32,6 @@ pip install -r requirements.txt
 - [x] Send to GPU
 - [x] Add debug info in vscode
 - [x] Rewire all to andri's new data preprocessing
-- [ ] Speed up learning
 - [ ] ML + DL ensemble MoE
 - [ ] Start drawing out pipeline
 

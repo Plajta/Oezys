@@ -89,3 +89,11 @@ def run_full_pipeline(abs_path):
     # Model testing
     LOGI(TAG, "Starting NN testing sequence...")
     model_trainer.test(resnet18, dataloaders=test_loader, ckpt_path="best", weights_only=False)
+
+
+def run_top_pipeline():
+    LOGI(TAG, "Setting up dataset...")
+
+    
+
+    LOGI(TAG, "Startin MoE-NN testing sequence")

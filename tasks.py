@@ -11,13 +11,13 @@ from src.preprocessing.cleaner import remove_raw_data, remove_clean_data, remove
 #
 # Trainer imports
 #
-from src.models.trainer import run_full_pipeline
+from src.models.trainer import run_full_pipeline, run_top_pipeline
 from src.models.data import DataInspector, load_config
 
 #
 # Inference module
 #
-from models.test_inference import inference_setup
+from src.models.test_inference import inference_setup
 
 from pathlib import Path
 from os.path import join
@@ -68,8 +68,14 @@ def imaginary(ctx, clean=False):
 
 @task
 def run_pipeline(ctx):
-    """RadBrecim Neural training sequence"""
+    """Oezys Neural training sequence"""
     run_full_pipeline(ABS_PATH)
+
+
+@task
+def run_moe_pipeline(ctx):
+    """Oezys MoE training sequence"""
+    run_top_pipeline(ABS_PATH)
 
 
 @task
