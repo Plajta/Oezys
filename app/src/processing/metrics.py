@@ -6,6 +6,9 @@ from .model import ModelData
 from .preprocessing import PreprocessorData
 
 
+_MODEL_NAMES = ["RESNET + RF + FFT", "Neural Network(RESNET)", "Random Forest"]
+
+
 class MetricData:
     def __init__(self, datetime=None, filename=None, probabilities=None):
         self.Datetime = datetime
@@ -13,6 +16,8 @@ class MetricData:
         self.FilePath = None
         self.Probabilities = probabilities
         self.labels = ["Diabetes", "Primary Open-Angle Glaucoma", "Multiple Sclerosis", "Dry Eye Disease", "Healthy"]
+        self.AllProbabilities: list[list[float]] = []
+        self.ModelNames: list[str] = []
 
 
 class Metrics:
@@ -31,4 +36,10 @@ class Metrics:
             metrics.Probabilities = None
             return metrics
         metrics.Probabilities = [round(p * 100, 2) for p in predictions[0].Probabilities]
+        all_probs = []
+        for pred in predictions:
+            if pred.Probabilities:
+                all_probs.append([round(p * 100, 2) for p in pred.Probabilities])
+        metrics.AllProbabilities = all_probs
+        metrics.ModelNames = _MODEL_NAMES[:len(all_probs)]
         return metrics

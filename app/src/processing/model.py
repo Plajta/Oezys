@@ -1,6 +1,7 @@
 import os
 import importlib.util
 import numpy as np
+import cv2
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
@@ -17,9 +18,20 @@ _nn_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_nn_mod)
 ResNetInference = _nn_mod.ResNetInference
 
+_CL_INFERENCE_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "src", "models", "cl_inference.py")
+)
+_cl_spec = importlib.util.spec_from_file_location("oezys_cl_inference", _CL_INFERENCE_PATH)
+_cl_mod = importlib.util.module_from_spec(_cl_spec)
+_cl_spec.loader.exec_module(_cl_mod)
+TearClassifier = _cl_mod.TearClassifier
+
 NUM_CLASSES = 5
 _MODEL_PATH = os.path.join(os.path.dirname(__file__), "classifier_best.pth")
 _DANIEL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "run32best-checkpoint-epoch=36-val_acc=0.85.ckpt")
+_TEAR_MODEL_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "src", "models", "config", "cl_models", "tear_classifier.pkl")
+)
 
 _VAL_TF = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -53,11 +65,13 @@ class ModelData:
 
 
 class Model:
-    def __init__(self, model_path: str | None = None, daniel_model_path: str | None = None):
+    def __init__(self, model_path: str | None = None, daniel_model_path: str | None = None, tear_model_path: str | None = None):
         self._model_path = model_path or _MODEL_PATH
         self._daniel_model_path = daniel_model_path or _DANIEL_MODEL_PATH
+        self._tear_model_path = tear_model_path or _TEAR_MODEL_PATH
         self._model: nn.Module | None = None
         self._daniel_model: ResNetInference | None = None
+        self._tear_model: TearClassifier | None = None
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def _ensure_loaded(self):
@@ -74,9 +88,15 @@ class Model:
             return
         self._daniel_model = ResNetInference(self._daniel_model_path)
 
+    def _ensure_tear_loaded(self):
+        if self._tear_model is not None:
+            return
+        self._tear_model = TearClassifier(self._tear_model_path)
+
     def run(self, preprocessed: PreprocessorData) -> list[ModelData]:
         self._ensure_loaded()
         self._ensure_daniel_loaded()
+        self._ensure_tear_loaded()
 
         arr = preprocessed.image  # float32 H×W×3, per-channel [0,1]
         arr_u8 = (arr * 255).clip(0, 255).astype(np.uint8)
@@ -89,16 +109,29 @@ class Model:
 
         probs_2 = self._daniel_model.run_array(arr_u8)
 
+        gray = cv2.cvtColor(arr_u8, cv2.COLOR_RGB2GRAY)
+        gray = cv2.resize(gray, (512, 512), interpolation=cv2.INTER_AREA)
+        feats = {}
+        feats.update(self._tear_model.extract_glcm_features(gray))
+        feats.update(self._tear_model.extract_fft_features(gray))
+        feats.update(self._tear_model.extract_morphology_features(gray))
+        feats["fractal_dim"] = self._tear_model.get_fractal_dimension(gray)
+        feat_vec = [feats[n] for n in self._tear_model.feature_names]
+        probs_3 = self._tear_model.model.predict_proba(self._tear_model.scaler.transform([feat_vec]))[0].tolist()
+
         pred_1 = int(torch.tensor(probs).argmax())
         pred_2 = int(torch.tensor(probs_2).argmax())
+        pred_3 = int(np.argmax(probs_3))
 
         res = [
             ModelData(label=LABELS[pred_1], probabilities=probs),
             ModelData(label=LABELS[pred_2], probabilities=probs_2),
+            ModelData(label=LABELS[pred_3], probabilities=probs_3),
         ]
 
-        print(f"[Model] Predicted: {res[0].Label} with probabilities {res[0].Probabilities}")
+        print(f"[Model] Hlib model Predicted: {res[0].Label} with probabilities {res[0].Probabilities}")
         print(f"[Model] Daniel's model predicted: {res[1].Label} with probabilities {res[1].Probabilities}")
+        print(f"[Model] Honza classifier predicted: {res[2].Label} with probabilities {res[2].Probabilities}")
 
         return res
 
