@@ -56,7 +56,7 @@ class Model:
         net.to(self._device).eval()
         self._model = net
 
-    def run(self, preprocessed: PreprocessorData) -> ModelData:
+    def run(self, preprocessed: PreprocessorData) -> list[ModelData]:
         self._ensure_loaded()
 
         arr = preprocessed.image  # float32 H×W×3, per-channel [0,1]
@@ -69,4 +69,16 @@ class Model:
             probs = torch.softmax(logits, dim=1).squeeze().cpu().tolist()
 
         pred = int(torch.tensor(probs).argmax())
-        return ModelData(label=LABELS[pred], probabilities=probs)
+
+
+
+        res = [
+            ModelData(label=LABELS[pred], probabilities=probs), 
+            ModelData(label=LABELS[pred], probabilities=),
+            ModelData(label=LABELS[pred], probabilities=)
+            ]
+
+
+
+        return res
+
