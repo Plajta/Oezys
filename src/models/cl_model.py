@@ -9,7 +9,7 @@ from skimage.feature import graycomatrix, graycoprops
 from skimage.morphology import skeletonize
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import pickle
 import yaml
@@ -131,9 +131,12 @@ def preprocess_data(df, test_size=0.2):
 
 def train_tear_classifier(df, test_size=0.2):
     X_train_scaled, X_test_scaled, y_train, y_test, scaler = preprocess_data(df, test_size)
-    model = RandomForestClassifier(
-        n_estimators=100, class_weight="balanced"
-    )
+    model = RandomForestClassifier(n_estimators=10, class_weight="balanced", min_samples_split=5)
+    
+    # Add CV score
+    scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='f1_macro')
+    print(f"CV F1 Scores: {scores.mean():.3f} (+/- {scores.std() * 2:.3f})")
+    
     model.fit(X_train_scaled, y_train)
 
     return model, scaler, X_test_scaled, y_test
