@@ -7,7 +7,6 @@ import albumentations as A
 import numpy as np
 import cv2
 import torch
-import torch.nn.functional as F
 from os import listdir
 from os.path import join
 
@@ -180,6 +179,8 @@ class TearDataset(Dataset):
         self.train_transform = A.Compose([
             A.Resize(size, size),
             A.HorizontalFlip(p=hflip_perc),
+            A.VerticalFlip(p=0.5),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
             A.Rotate(limit=rotate_limit, p=rotate_perc),
             A.RandomBrightnessContrast(p=contrast_perc),
             A.GaussNoise(p=gauss_noise_perc),

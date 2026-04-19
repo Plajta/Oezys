@@ -41,10 +41,6 @@ class ResNet18Model(L.LightningModule):
         for param in self.model.get_classifier().parameters():
             param.requires_grad = True
 
-        # test? TODO
-        #for param in self.model.layer4.parameters():
-        #    param.requires_grad = True
-
     def forward(self, x):
         return self.model(x)
 

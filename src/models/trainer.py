@@ -57,7 +57,7 @@ def run_full_pipeline(abs_path):
 
     early_stop_callback = EarlyStopping(
         monitor="val_loss",
-        patience=10, # Stop if no improvement for 10 epochs
+        patience=15, # Stop if no improvement for 10 epochs
         mode="min"
     )
 
@@ -78,6 +78,7 @@ def run_full_pipeline(abs_path):
         logger=wandb_logger,
         callbacks=[checkpoint_callback, early_stop_callback],
         log_every_n_steps=3,
+        accumulate_grad_batches=4
     )
     model_trainer.fit(
         model=resnet18,
