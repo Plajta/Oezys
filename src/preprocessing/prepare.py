@@ -242,8 +242,11 @@ def extract_afm_channel_scaled(scan, channel_name):
                 return None
         return pixels
 
-def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst):
-    # rgb_image is [H, W, 3]
+def get_augmented_crops(rgb_image) -> np.ndarray:
+    """
+    Extracts crops, removes duplicates/NaNs, applies augmentations, and normalizes channels.
+    Returns a NumPy array of shape (N, CROP_SIZE, CROP_SIZE, 3).
+    """
     h, w, _ = rgb_image.shape
     CROP = CROP_SIZE
     crops = []
@@ -277,7 +280,7 @@ def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst)
                 if np.array_equal(c, vc): skip = True
             if not skip: valid_crops.append(c)
             
-    aug_idx = 0
+    all_variations = []
     for crop in valid_crops:
         variations = [
             crop,
@@ -291,44 +294,57 @@ def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst)
         ]
         
         for v in variations:
-            img_path = os.path.join(imgs_dst, f"{base_name}_{aug_idx}.bmp")
-            lbl_path = os.path.join(labels_dst, f"{base_name}_{aug_idx}.txt")
-            
-            # Channel-wise normalization to 0-1 range for save
+            # Channel-wise normalization to 0-1 range
             v_norm = np.zeros_like(v, dtype=np.float32)
             for ch in range(3):
                 c_min = v[:,:,ch].min()
                 c_max = v[:,:,ch].max()
                 if c_max > c_min:
                     v_norm[:,:,ch] = (v[:,:,ch] - c_min) / (c_max - c_min)
+            all_variations.append(v_norm)
             
-            plt.imsave(img_path, v_norm)
-            with open(lbl_path, 'w') as lf:
-                lf.write(str(label_id))
-                
-            aug_idx += 1
+    return np.array(all_variations) if all_variations else np.array([])
+
+def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst):
+    augmented_arrays = get_augmented_crops(rgb_image)
+    aug_idx = 0
+    
+    for v_norm in augmented_arrays:
+        img_path = os.path.join(imgs_dst, f"{base_name}_{aug_idx}.bmp")
+        lbl_path = os.path.join(labels_dst, f"{base_name}_{aug_idx}.txt")
+        
+        plt.imsave(img_path, v_norm)
+        with open(lbl_path, 'w') as lf:
+            lf.write(str(label_id))
+            
+        aug_idx += 1
+        
     return aug_idx
 
-def prepare_imaginary_array(file_path: str):
-    """
-    Loads an AFM file and stacks three specific channels into an RGB-like array.
-    """
-    scan = pySPM.Bruker(file_path)
-                
+def prepare_imaginary_image(src: str) -> np.ndarray:
+    LOGI(TAG, f"Extracting imaginary images from {src} as np.array")
+    if not os.path.exists(src):
+        LOGE(TAG, f"Error: File not found -> {src}")
+        return np.array([])
+    
+    try:
+        scan = pySPM.Bruker(src)
+    except Exception as e:
+        LOGE(TAG, f"Failed to read file {src}: {e}")
+        return np.array([])
+        
     # Fetch 3 distinct layers to make RGB imaginary stack
     ch_r = extract_afm_channel_scaled(scan, "Height Sensor")
     ch_g = extract_afm_channel_scaled(scan, "Amplitude Error")
     ch_b = extract_afm_channel_scaled(scan, "Phase")
     
-    # Fallback logic: if Height Sensor is missing, we can't proceed
     if ch_r is None: 
-        return None 
+        LOGW(TAG, f"Skipped {src}: 'Height Sensor' channel missing.")
+        return np.array([])
         
-    # If other channels are missing, use Height Sensor as a fallback for those channels
     if ch_g is None: ch_g = ch_r
     if ch_b is None: ch_b = ch_r
     
-    # Align dimensions (in case of slight scaling differences)
     min_h = min(ch_r.shape[0], ch_g.shape[0], ch_b.shape[0])
     min_w = min(ch_r.shape[1], ch_g.shape[1], ch_b.shape[1])
     
@@ -338,7 +354,10 @@ def prepare_imaginary_array(file_path: str):
         ch_b[:min_h, :min_w]
     ], axis=-1)
     
-    return rgb
+    augmented_arrays = get_augmented_crops(rgb)
+    
+    LOGI(TAG, f"Prepared single imaginary file: generated {len(augmented_arrays)} variations.")
+    return augmented_arrays
 
 def prepare_imaginary_datas(raw_dir: str, imaginary_dir: str, classes_raw_dirs: dict):
     LOGI(TAG, f"Preparing imaginary from {raw_dir} to {imaginary_dir}")
@@ -356,31 +375,36 @@ def prepare_imaginary_datas(raw_dir: str, imaginary_dir: str, classes_raw_dirs: 
     total_imgs = 0
     for class_name, label_id in classes_raw_dirs.items():
         class_path = os.path.join(raw_dir, class_name)
-        if not os.path.exists(class_path): 
-            continue
+        if not os.path.exists(class_path): continue
         
         for entry in os.scandir(class_path):
             if entry.is_file() and is_spm_file(entry.path):
-                # Call the refactored function
-                rgb = prepare_imaginary_array(entry.path)
+                scan = pySPM.Bruker(entry.path)
                 
-                if rgb is None:
-                    LOGW(TAG, f"Skipping {entry.name}: Missing primary Height Sensor channel.")
-                    continue
+                # Fetch 3 distinct layers to make RGB imaginary stack
+                ch_r = extract_afm_channel_scaled(scan, "Height Sensor")
+                ch_g = extract_afm_channel_scaled(scan, "Amplitude Error")
+                ch_b = extract_afm_channel_scaled(scan, "Phase")
                 
-                n_saved = augment_and_save_crops(
-                    rgb, 
-                    f"imag_{class_name}_{file_idx}", 
-                    label_id, 
-                    imgs_dst, 
-                    labels_dst
-                )
+                if ch_r is None: continue  # Skip if no base height
+                if ch_g is None: ch_g = ch_r
+                if ch_b is None: ch_b = ch_r
                 
+                min_h = min(ch_r.shape[0], ch_g.shape[0], ch_b.shape[0])
+                min_w = min(ch_r.shape[1], ch_g.shape[1], ch_b.shape[1])
+                
+                rgb = np.stack([
+                    ch_r[:min_h, :min_w],
+                    ch_g[:min_h, :min_w],
+                    ch_b[:min_h, :min_w]
+                ], axis=-1)
+                
+                n_saved = augment_and_save_crops(rgb, f"imag_{class_name}_{file_idx}", label_id, imgs_dst, labels_dst)
                 total_imgs += n_saved
                 if file_idx % 10 == 0:
-                    LOGI(TAG, f"[imaginary] {entry.name} -> {n_saved} variations. Total: {total_imgs}")
+                    LOGI(TAG, f"[imaginary] {entry.name} -> appended {n_saved} variations. Total generated so far: {total_imgs}")
                 file_idx += 1
                 
     with open(sentinel_file, 'w') as f:
         f.write("done")
-    LOGI(TAG, f"Imaginary dataset ready! Generated {total_imgs} images.")
+    LOGI(TAG, f"Imaginary dataset ready! Generated exactly {total_imgs} images.")
