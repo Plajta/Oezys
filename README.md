@@ -1,5 +1,7 @@
 # Oezys project
-<img width="300" alt="oezys_logo" src="https://github.com/user-attachments/assets/38bc22a4-0fc9-41eb-b0f1-b069b4ca396e" />
+<div align="center">
+    <img width="300" alt="oezys_logo" src="./doc/oezys_logo_transparent.png"/>
+</div>
 
 Running on Python version V3.12
 
@@ -33,5 +35,5 @@ pip install -r requirements.txt
 - [x] Add debug info in vscode
 - [x] Rewire all to andri's new data preprocessing
 - [x] Start drawing out pipeline
-- [ ] ML + DL ensemble MoE
-- [ ] Finish working on MoE
+- [x] ML + DL ensemble MoE
+- [ ] Debug MoE because it is not really functional right now
