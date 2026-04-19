@@ -12,7 +12,7 @@ class Config:
         repo_root = os.path.dirname(src_dir)
         conf_path = os.path.join(current_dir, "config.conf")
         
-        conf.read(conf_path)
+        conf.read(conf_path, encoding="utf-8")
 
         self.source_url = conf["preprocessing"]["source_url"]
         

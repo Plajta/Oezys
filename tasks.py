@@ -41,8 +41,10 @@ def experimental(ctx, clean=False):
 
 @task
 def imaginary(ctx, clean=False):
-    """Generate multi-layered (Amplitude/Phase/Height) augmented crops into data/imaginary/"""
+    """Download raw data (if needed) and generate multi-layered AFM crops into data/imaginary/"""
     import shutil, os
+    PATH_RAW = join(ABS_PATH, CONFIG.raw_dir)
     if clean and os.path.exists(CONFIG.imaginary_dir):
         shutil.rmtree(CONFIG.imaginary_dir)
+    download_data(CONFIG.source_url, PATH_RAW)
     prepare_imaginary_datas(CONFIG.raw_dir, CONFIG.imaginary_dir, CONFIG.classes_raw_dirs)

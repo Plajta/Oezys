@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms, models
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
 
 # ---------------------------------------------------------------------------
@@ -29,12 +29,12 @@ DATA_DIR   = "data/imaginary"
 OUT_PATH   = "app/src/processing/classifier_best.pth"
 NUM_CLASSES = 5
 BATCH_SIZE  = 32
-EPOCHS      = 30
-LR          = 1e-3
-LR_FINE     = 1e-4
-FREEZE_EPOCHS = 15   # epochs with frozen backbone
-N_FOLDS     = 5
-SEED        = 42
+EPOCHS        = 3
+LR            = 1e-3
+LR_FINE       = 1e-4
+FREEZE_EPOCHS = 1   # epochs with frozen backbone
+VAL_SPLIT     = 0.2
+SEED          = 42
 
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
@@ -134,7 +134,7 @@ def make_sampler(labels: list[int]) -> WeightedRandomSampler:
 def class_weights(labels: list[int]) -> torch.Tensor:
     counts = Counter(labels)
     total = len(labels)
-    w = torch.tensor([total / counts[i] for i in range(NUM_CLASSES)], dtype=torch.float32)
+    w = torch.tensor([total / counts[i] if counts[i] > 0 else 0.0 for i in range(NUM_CLASSES)], dtype=torch.float32)
     return w / w.sum() * NUM_CLASSES
 
 
@@ -166,65 +166,57 @@ def run_epoch(model, loader, optimizer, criterion, train: bool):
 
 def main():
     img_paths, labels = load_dataset(DATA_DIR)
-    labels_arr = np.array(labels)
-    dist = Counter(labels)
-    print(f"Dataset: {len(img_paths)} images | {dist}")
+    print(f"Dataset: {len(img_paths)} images | {Counter(labels)}")
 
-    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
+    tr_paths, val_paths, tr_labels, val_labels = train_test_split(
+        img_paths, labels, test_size=VAL_SPLIT, stratify=labels, random_state=SEED
+    )
+    print(f"Train: {len(tr_paths)} | Val: {len(val_paths)}")
+
+    tr_ds  = ImaginaryDataset(tr_paths,  tr_labels,  TRAIN_TF)
+    val_ds = ImaginaryDataset(val_paths, val_labels, VAL_TF)
+
+    sampler    = make_sampler(tr_labels)
+    tr_loader  = DataLoader(tr_ds,  batch_size=BATCH_SIZE, sampler=sampler,  num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+
+    model = build_model().to(DEVICE)
+    cw = class_weights(tr_labels).to(DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=cw, label_smoothing=0.1)
+
     best_val_f1, best_model_state = 0.0, None
 
-    for fold, (tr_idx, val_idx) in enumerate(skf.split(img_paths, labels_arr)):
-        print(f"\n{'='*60}")
-        print(f"Fold {fold+1}/{N_FOLDS}")
-
-        tr_paths  = [img_paths[i] for i in tr_idx]
-        tr_labels = [labels[i]    for i in tr_idx]
-        val_paths  = [img_paths[i] for i in val_idx]
-        val_labels = [labels[i]    for i in val_idx]
-
-        tr_ds  = ImaginaryDataset(tr_paths,  tr_labels,  TRAIN_TF)
-        val_ds = ImaginaryDataset(val_paths, val_labels, VAL_TF)
-
-        sampler    = make_sampler(tr_labels)
-        tr_loader  = DataLoader(tr_ds,  batch_size=BATCH_SIZE, sampler=sampler,  num_workers=0)
-        val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-
-        model = build_model().to(DEVICE)
-        cw = class_weights(tr_labels).to(DEVICE)
-        criterion = nn.CrossEntropyLoss(weight=cw, label_smoothing=0.1)
-
-        # Phase 1: frozen backbone
-        freeze_backbone(model)
-        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-                                lr=LR, weight_decay=5e-4)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=FREEZE_EPOCHS)
-        for ep in range(FREEZE_EPOCHS):
-            tr_loss, tr_acc, tr_f1 = run_epoch(model, tr_loader, optimizer, criterion, train=True)
-            scheduler.step()
-            print(f"  [frozen] {ep+1:02d}/{FREEZE_EPOCHS} loss={tr_loss:.3f} acc={tr_acc:.3f} f1={tr_f1:.3f}")
-
-        # Phase 2: full fine-tune
-        unfreeze_all(model)
-        optimizer = optim.AdamW(model.parameters(), lr=LR_FINE, weight_decay=5e-4)
-        fine_epochs = EPOCHS - FREEZE_EPOCHS
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=fine_epochs)
-        for ep in range(fine_epochs):
-            tr_loss, tr_acc, tr_f1 = run_epoch(model, tr_loader, optimizer, criterion, train=True)
-            scheduler.step()
-            print(f"  [full]   {ep+1:02d}/{fine_epochs} loss={tr_loss:.3f} acc={tr_acc:.3f} f1={tr_f1:.3f}")
-
+    # Phase 1: frozen backbone
+    freeze_backbone(model)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=FREEZE_EPOCHS)
+    print(f"\n--- Frozen backbone ({FREEZE_EPOCHS} epochs) ---")
+    for ep in range(FREEZE_EPOCHS):
+        tr_loss, tr_acc, tr_f1 = run_epoch(model, tr_loader, optimizer, criterion, train=True)
+        scheduler.step()
         val_loss, val_acc, val_f1 = run_epoch(model, val_loader, None, criterion, train=False)
-        print(f"  Val → loss={val_loss:.3f} acc={val_acc:.3f} f1={val_f1:.3f}")
-
+        print(f"  [frozen] {ep+1:02d}/{FREEZE_EPOCHS} tr_loss={tr_loss:.3f} tr_acc={tr_acc:.3f} tr_f1={tr_f1:.3f} | val_loss={val_loss:.3f} val_acc={val_acc:.3f} val_f1={val_f1:.3f}")
         if val_f1 > best_val_f1:
             best_val_f1 = val_f1
             best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-            print(f"  *** New best F1={best_val_f1:.4f} — saving")
+            print(f"    *** New best val_f1={best_val_f1:.4f}")
 
-        # Free MPS memory between folds
-        del model, optimizer, scheduler, tr_loader, val_loader, tr_ds, val_ds
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
+    # Phase 2: full fine-tune
+    fine_epochs = EPOCHS - FREEZE_EPOCHS
+    if fine_epochs > 0:
+        unfreeze_all(model)
+        optimizer = optim.AdamW(model.parameters(), lr=LR_FINE, weight_decay=5e-4)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=fine_epochs)
+        print(f"\n--- Full fine-tune ({fine_epochs} epochs) ---")
+        for ep in range(fine_epochs):
+            tr_loss, tr_acc, tr_f1 = run_epoch(model, tr_loader, optimizer, criterion, train=True)
+            scheduler.step()
+            val_loss, val_acc, val_f1 = run_epoch(model, val_loader, None, criterion, train=False)
+            print(f"  [full]   {ep+1:02d}/{fine_epochs} tr_loss={tr_loss:.3f} tr_acc={tr_acc:.3f} tr_f1={tr_f1:.3f} | val_loss={val_loss:.3f} val_acc={val_acc:.3f} val_f1={val_f1:.3f}")
+            if val_f1 > best_val_f1:
+                best_val_f1 = val_f1
+                best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+                print(f"    *** New best val_f1={best_val_f1:.4f}")
 
     torch.save(best_model_state, OUT_PATH)
     print(f"\nDone. Best val F1={best_val_f1:.4f} → saved to {OUT_PATH}")

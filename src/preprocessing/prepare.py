@@ -10,27 +10,26 @@ from skimage.color import rgb2gray
 from src.logger.logger import LOGI, LOGE, LOGW
 
 TAG = "PREPARER"
-GRID_SIZE = 64  # direction map grid resolution (always outputs GRID_SIZE x GRID_SIZE patches)
-TARGET_RESOL_UM = 0.1  # Set target to 0.1 um per pixel
-CROP_SIZE = 500        # Center crop to 500x500 pixels (50x50 um area)
+GRID_SIZE = 64
+TARGET_RESOL_UM = 0.1
+CROP_SIZE = 500
+
 
 def prepare_image(path: str):
     Z = convertAFMtoArray(path)
-    
-    # Center crop to exactly CROP_SIZE
+
     h, w = Z.shape
     cy, cx = h // 2, w // 2
     half = CROP_SIZE // 2
-    
-    # Pad if smaller than CROP_SIZE
+
     if h < CROP_SIZE or w < CROP_SIZE:
         pad_y = max(0, CROP_SIZE - h)
         pad_x = max(0, CROP_SIZE - w)
         Z = np.pad(Z, ((pad_y // 2, (pad_y + 1) // 2), (pad_x // 2, (pad_x + 1) // 2)), mode='reflect')
         h, w = Z.shape
         cy, cx = h // 2, w // 2
-        
-    crop = Z[cy - half : cy + half, cx - half : cx + half]
+
+    crop = Z[cy - half:cy + half, cx - half:cx + half]
     norm = crop / (np.linalg.norm(crop) + 1e-8)
     return norm
 
@@ -60,38 +59,39 @@ def prepare_datas(input_dir: str, output_dir: str, classes_raw_dirs: dict):
         f.write("done")
     LOGI(TAG, f"Dataset prepared at {output_dir}")
 
+
 def convertAFMtoArray(afmraw_path: str):
     scan = pySPM.Bruker(afmraw_path)
     channel = scan.get_channel('Height Sensor')
-    pixels = channel.correct_lines().pixels
-    
+    try:
+        pixels = channel.correct_lines().pixels
+    except ValueError:
+        pixels = channel.pixels
+        pixels = pixels - np.mean(pixels, axis=1, keepdims=True)
+
     try:
         from skimage.transform import rescale
         sz = channel.size
-        # Physical length per pixel
         res_x = sz['real']['x'] / sz['pixels']['x']
         res_y = sz['real']['y'] / sz['pixels']['y']
-        
-        # Scale factors to achieve TARGET_RESOL_UM
         scale_x = res_x / TARGET_RESOL_UM
         scale_y = res_y / TARGET_RESOL_UM
-        
+
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            # anti_aliasing=True avoids artifacts from downscaling
             scaled_img = rescale(pixels, (scale_y, scale_x), anti_aliasing=True, preserve_range=True)
-            
+
         return scaled_img
     except Exception as e:
         LOGW(TAG, f"Could not rescale {afmraw_path} to physical units, using raw dimensions. ({e})")
         return pixels
 
+
 def _create_clean_folder(output_dir: str):
-    clean_imgs_dir_path = os.path.join(output_dir, "imgs")
-    clean_labels_dir_path = os.path.join(output_dir, "labels")
-    os.makedirs(clean_imgs_dir_path, exist_ok=True)
-    os.makedirs(clean_labels_dir_path, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "imgs"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "labels"), exist_ok=True)
+
 
 def is_spm_file(filepath):
     try:
@@ -101,17 +101,12 @@ def is_spm_file(filepath):
                 return True
     except Exception:
         pass
-        
     return False
 
 
 # ---------- Experimental: direction map generation ----------
 
 def _direction_map_rgb(gray: np.ndarray, grid_size: int = GRID_SIZE) -> np.ndarray:
-    """
-    Compute a per-patch dominant crystal orientation map using the structure tensor.
-    Returns an RGB image (same size as input) where hue = fiber direction, saturation = coherence.
-    """
     H, W = gray.shape
     ph, pw = H // grid_size, W // grid_size
     if ph == 0 or pw == 0:
@@ -143,7 +138,6 @@ def _direction_map_rgb(gray: np.ndarray, grid_size: int = GRID_SIZE) -> np.ndarr
             fiber_angle = (0.5 * np.arctan2(2.0 * Jxy, Jxx - Jyy) + np.pi / 2.0) % np.pi
             angle_map[i, j] = fiber_angle / np.pi
 
-    # Upsample patch maps to original image size
     angle_up = np.repeat(np.repeat(angle_map, ph, axis=0), pw, axis=1)[:H, :W]
     coh_up = np.repeat(np.repeat(coherence_map, ph, axis=0), pw, axis=1)[:H, :W]
 
@@ -155,10 +149,6 @@ def _direction_map_rgb(gray: np.ndarray, grid_size: int = GRID_SIZE) -> np.ndarr
 
 
 def prepare_experimental(clean_dir: str, exp_dir: str):
-    """
-    Generate direction-map images from the already-prepared clean dataset.
-    Outputs to exp_dir/imgs/ with the same filenames and copies labels from clean_dir/labels/.
-    """
     LOGI(TAG, f"Preparing experimental direction maps from {clean_dir} to {exp_dir}")
     sentinel_file = os.path.join(exp_dir, ".exp_done")
     if os.path.exists(sentinel_file):
@@ -199,6 +189,7 @@ def prepare_experimental(clean_dir: str, exp_dir: str):
         f.write("done")
     LOGI(TAG, f"Experimental dataset ready at {exp_dir}")
 
+
 # ---------- Imaginary (Multi-Layer & Augmented) generation ----------
 
 def extract_afm_channel_scaled(scan, channel_name):
@@ -206,62 +197,68 @@ def extract_afm_channel_scaled(scan, channel_name):
         channel = scan.get_channel(channel_name)
     except:
         return None
-    
-    if not channel: return None
+
+    if not channel:
+        return None
     try:
-        pixels = channel.correct_lines().pixels
+        try:
+            pixels = channel.correct_lines().pixels
+        except ValueError:
+            pixels = channel.pixels
+            pixels = pixels - np.mean(pixels, axis=1, keepdims=True)
+
         from skimage.transform import rescale
         sz = channel.size
-        # Physical length per pixel
         res_x = sz['real']['x'] / sz['pixels']['x']
         res_y = sz['real']['y'] / sz['pixels']['y']
-        
         scale_x = res_x / TARGET_RESOL_UM
         scale_y = res_y / TARGET_RESOL_UM
-        
+
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             scaled = rescale(pixels, (scale_y, scale_x), anti_aliasing=True, preserve_range=True)
         return scaled
-    except:
+    except Exception:
+        if 'pixels' not in locals():
+            try:
+                pixels = channel.pixels
+            except:
+                return None
         return pixels
 
+
 def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst):
-    # rgb_image is [H, W, 3]
     h, w, _ = rgb_image.shape
     CROP = CROP_SIZE
     crops = []
-    
+
     def extract_crop(y0, x0):
         y1, x1 = y0 + CROP, x0 + CROP
-        if y1 > h or x1 > w: return None
+        if y1 > h or x1 > w:
+            return None
         return rgb_image[y0:y1, x0:x1, :]
-        
+
     if h >= CROP and w >= CROP:
-        # Top-Left, Top-Right, Bottom-Left, Bottom-Right, Center
         crops.append(extract_crop(0, 0))
         crops.append(extract_crop(0, w - CROP))
         crops.append(extract_crop(h - CROP, 0))
         crops.append(extract_crop(h - CROP, w - CROP))
-        crops.append(extract_crop((h - CROP)//2, (w - CROP)//2))
+        crops.append(extract_crop((h - CROP) // 2, (w - CROP) // 2))
     else:
-        # Pad and use center
         pad_y = max(0, CROP - h)
         pad_x = max(0, CROP - w)
-        padded = np.pad(rgb_image, ((pad_y//2, (pad_y+1)//2), (pad_x//2, (pad_x+1)//2), (0,0)), mode='reflect')
+        padded = np.pad(rgb_image, ((pad_y // 2, (pad_y + 1) // 2), (pad_x // 2, (pad_x + 1) // 2), (0, 0)), mode='reflect')
         ph, pw, _ = padded.shape
-        crops.append(padded[(ph-CROP)//2 : (ph+CROP)//2, (pw-CROP)//2 : (pw+CROP)//2, :])
-        
-    # remove nans and duplicates
+        crops.append(padded[(ph - CROP) // 2:(ph + CROP) // 2, (pw - CROP) // 2:(pw + CROP) // 2, :])
+
     valid_crops = []
     for c in crops:
         if c is not None and not np.isnan(c).any():
-            skip = False
-            for vc in valid_crops:
-                if np.array_equal(c, vc): skip = True
-            if not skip: valid_crops.append(c)
-            
+            skip = any(np.array_equal(c, vc) for vc in valid_crops)
+            if not skip:
+                valid_crops.append(c)
+
     aug_idx = 0
     for crop in valid_crops:
         variations = [
@@ -274,25 +271,47 @@ def augment_and_save_crops(rgb_image, base_name, label_id, imgs_dst, labels_dst)
             np.fliplr(np.rot90(crop, k=1)),
             np.flipud(np.rot90(crop, k=1)),
         ]
-        
+
         for v in variations:
             img_path = os.path.join(imgs_dst, f"{base_name}_{aug_idx}.bmp")
             lbl_path = os.path.join(labels_dst, f"{base_name}_{aug_idx}.txt")
-            
-            # Channel-wise normalization to 0-1 range for save
+
             v_norm = np.zeros_like(v, dtype=np.float32)
             for ch in range(3):
-                c_min = v[:,:,ch].min()
-                c_max = v[:,:,ch].max()
+                c_min = v[:, :, ch].min()
+                c_max = v[:, :, ch].max()
                 if c_max > c_min:
-                    v_norm[:,:,ch] = (v[:,:,ch] - c_min) / (c_max - c_min)
-            
+                    v_norm[:, :, ch] = (v[:, :, ch] - c_min) / (c_max - c_min)
+
             plt.imsave(img_path, v_norm)
             with open(lbl_path, 'w') as lf:
                 lf.write(str(label_id))
-                
+
             aug_idx += 1
     return aug_idx
+
+
+def prepare_imaginary_array(file_path: str):
+    scan = pySPM.Bruker(file_path)
+
+    ch_r = extract_afm_channel_scaled(scan, "Height Sensor")
+    ch_g = extract_afm_channel_scaled(scan, "Amplitude Error")
+    ch_b = extract_afm_channel_scaled(scan, "Phase")
+
+    if ch_r is None:
+        return None
+    if ch_g is None: ch_g = ch_r
+    if ch_b is None: ch_b = ch_r
+
+    min_h = min(ch_r.shape[0], ch_g.shape[0], ch_b.shape[0])
+    min_w = min(ch_r.shape[1], ch_g.shape[1], ch_b.shape[1])
+
+    return np.stack([
+        ch_r[:min_h, :min_w],
+        ch_g[:min_h, :min_w],
+        ch_b[:min_h, :min_w],
+    ], axis=-1)
+
 
 def prepare_imaginary_datas(raw_dir: str, imaginary_dir: str, classes_raw_dirs: dict):
     LOGI(TAG, f"Preparing imaginary from {raw_dir} to {imaginary_dir}")
@@ -305,41 +324,34 @@ def prepare_imaginary_datas(raw_dir: str, imaginary_dir: str, classes_raw_dirs: 
     labels_dst = os.path.join(imaginary_dir, "labels")
     os.makedirs(imgs_dst, exist_ok=True)
     os.makedirs(labels_dst, exist_ok=True)
-    
+
     file_idx = 0
     total_imgs = 0
     for class_name, label_id in classes_raw_dirs.items():
         class_path = os.path.join(raw_dir, class_name)
-        if not os.path.exists(class_path): continue
-        
+        if not os.path.exists(class_path):
+            continue
+
         for entry in os.scandir(class_path):
             if entry.is_file() and is_spm_file(entry.path):
-                scan = pySPM.Bruker(entry.path)
-                
-                # Fetch 3 distinct layers to make RGB imaginary stack
-                ch_r = extract_afm_channel_scaled(scan, "Height Sensor")
-                ch_g = extract_afm_channel_scaled(scan, "Amplitude Error")
-                ch_b = extract_afm_channel_scaled(scan, "Phase")
-                
-                if ch_r is None: continue  # Skip if no base height
-                if ch_g is None: ch_g = ch_r
-                if ch_b is None: ch_b = ch_r
-                
-                min_h = min(ch_r.shape[0], ch_g.shape[0], ch_b.shape[0])
-                min_w = min(ch_r.shape[1], ch_g.shape[1], ch_b.shape[1])
-                
-                rgb = np.stack([
-                    ch_r[:min_h, :min_w],
-                    ch_g[:min_h, :min_w],
-                    ch_b[:min_h, :min_w]
-                ], axis=-1)
-                
-                n_saved = augment_and_save_crops(rgb, f"imag_{class_name}_{file_idx}", label_id, imgs_dst, labels_dst)
+                rgb = prepare_imaginary_array(entry.path)
+
+                if rgb is None:
+                    LOGW(TAG, f"Skipping {entry.name}: Missing primary Height Sensor channel.")
+                    continue
+
+                n_saved = augment_and_save_crops(
+                    rgb,
+                    f"imag_{class_name}_{file_idx}",
+                    label_id,
+                    imgs_dst,
+                    labels_dst,
+                )
+
                 total_imgs += n_saved
-                if file_idx % 10 == 0:
-                    LOGI(TAG, f"[imaginary] {entry.name} -> appended {n_saved} variations. Total generated so far: {total_imgs}")
+                LOGI(TAG, f"[imaginary] {entry.name} -> appended {n_saved} variations. Total generated so far: {total_imgs}")
                 file_idx += 1
-                
+
     with open(sentinel_file, 'w') as f:
         f.write("done")
-    LOGI(TAG, f"Imaginary dataset ready! Generated exactly {total_imgs} images.")
+    LOGI(TAG, f"Imaginary dataset ready! Generated {total_imgs} images.")
